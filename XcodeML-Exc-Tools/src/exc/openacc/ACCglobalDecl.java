@@ -1,6 +1,8 @@
 package exc.openacc;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import exc.block.Bcons;
@@ -12,12 +14,16 @@ class ACCglobalDecl{
   private static final String ACC_CONSTRUCTOR_FUNC_PREFIX = "acc_traverse_init_file_";
   private static final String ACC_TRAVERSE_INIT_FUNC_NAME = "acc_traverse_init";
   private static final String ACC_TRAVERSE_FINALIZE_FUNC_NAME = "acc_traverse_finalize";
+  private static final String ACC_KERNELS_FINALIZE_FUNC_NAME = "_ACC_kernels_finalize";
+  public static final String ACC_KERNELS_INIT_FUNC_NAME = "_ACC_kernels_init";
   private XobjectFile   _env;
   private XobjList _globalConstructorFuncBody;
   private XobjList _globalDestructorFuncBody;
   private XobjectFile _env_device;
   private Map<Ident, ACCvar> globalVarMap = new HashMap<Ident, ACCvar>();
-  
+  private List<String> _kernelNames = new ArrayList<String>();
+  private Ident _kernelsId = null;
+
   
   private static String ACC_INIT_FUNC_NAME = "_ACC_init";
   private static String ACC_FINALIZE_FUNC_NAME = "_ACC_finalize";
@@ -48,7 +54,7 @@ class ACCglobalDecl{
     params.add(argv);
     
     XobjList args = Xcons.List(argc.Ref(), argv.Ref());
-    
+
     //_globalConstructorFuncBody.cons(Xcons.List(Xcode.EXPR_STATEMENT, declExternFunc(ACC_INIT_FUNC_NAME).Call(args)));
     Xtype funcType = Xtype.Function(Xtype.voidType);
 
@@ -234,4 +240,47 @@ class ACCglobalDecl{
     }
     globalVarMap.put(varId, var);
   }
+
+  Xobject declKernel(String kernelName){
+    int size = _kernelNames.size();
+
+    if(size == 0){
+      _kernelsId = _env.declStaticIdent("_ACC_kernels", Xtype.Array(Xtype.voidPtrType, null));
+    }
+
+    _kernelNames.add(kernelName);
+
+    return Xcons.arrayRef(Xtype.voidType,_kernelsId.getAddr(), Xcons.List(Xcons.IntConstant(size)));
+  }
+
+  void setupKernelsInitAndFinalize() {
+    int numKernels = _kernelNames.size();
+    if(numKernels == 0) return;
+
+    ArrayType type = (ArrayType)_kernelsId.Type();
+    type.setArraySize(numKernels);
+
+    { //init
+      Ident kernelInitFuncId = ACCutil.getMacroFuncId(ACC_KERNELS_INIT_FUNC_NAME, Xtype.voidType);
+      XobjList nameList = Xcons.List();
+      for(String name : _kernelNames){
+        nameList.add(Xcons.StringConstant(name));
+      }
+      BlockList body = Bcons.emptyBody();
+      Ident kernelNamesId = body.declLocalIdent("_ACC_kernel_names", Xtype.Array(Xtype.stringType, numKernels),
+              StorageClass.AUTO, nameList);
+      XobjList args = Xcons.List(Xcons.AddrOf(_kernelsId.getAddr()), Xcons.IntConstant(numKernels), kernelNamesId.Ref());
+      body.add(kernelInitFuncId.Call(args));
+      addGlobalConstructor(Bcons.COMPOUND(body).toXobject());
+    }
+
+    { //finalize
+      Ident kernelFinalizeFuncId = ACCutil.getMacroFuncId(ACC_KERNELS_FINALIZE_FUNC_NAME, Xtype.voidType);
+      BlockList body = Bcons.emptyBody();
+      XobjList args = Xcons.List(_kernelsId.getAddr(), Xcons.IntConstant(numKernels));
+      body.add(kernelFinalizeFuncId.Call(args));
+      addGlobalDestructor(Bcons.COMPOUND(body).toXobject());
+    }
+  }
+
 }
