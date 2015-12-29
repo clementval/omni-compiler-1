@@ -207,9 +207,15 @@ public class omompx
 	  exc.xmpF.XMP.MAX_ASSUMED_SHAPE = Integer.parseInt(n);
       } else if (arg.equals("-no-ldg")) {
         exc.openacc.ACC.useReadOnlyDataCache = false;
-      } else if (arg.startsWith("-default-veclen=")){
+      } else if (arg.startsWith("-default-veclen=")) {
         String n = arg.substring("-default-veclen=".length());
         ACC.defaultVectorLength = Integer.parseInt(n);
+      } else if (arg.startsWith("-platform=")){
+        String n = arg.substring("-platform=".length());
+        ACC.platform = ACC.Platform.valueOf(n);
+      } else if (arg.startsWith("-device=")){
+        String n = arg.substring("-device=".length());
+        ACC.device = ACC.Device.valueOf(n);
       } else if(arg.startsWith("-")){
         error("unknown option " + arg);
       } else if(inXmlFile == null) {

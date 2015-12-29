@@ -10,12 +10,13 @@ public class AccKernel {
   private final PragmaBlock _pb;
   private final AccInformation _kernelInfo; //parallel or kernels info
   private final AccManager gpuManager;
-  private static final String ACC_GPU_FUNC_PREFIX = "_ACC_GPU_FUNC";
+  private static final String ACC_FUNC_PREFIX = "_ACC_kernel_";
   private static final String ACC_REDUCTION_VAR_PREFIX = "_ACC_reduction_";
   private static final String ACC_CACHE_VAR_PREFIX = "_ACC_cache_";
   private static final String ACC_REDUCTION_TMP_VAR = "_ACC_GPU_RED_TMP";
   private static final String ACC_REDUCTION_CNT_VAR = "_ACC_GPU_RED_CNT";
   public static final String ACC_GPU_DEVICE_FUNC_SUFFIX = "_DEVICE";
+  private static final String ACC_CL_KERNEL_LAUNCHER_NAME = "_ACC_launch";
   private final Xobject _accThreadIndex = Xcons.Symbol(Xcode.VAR, Xtype.intType, "_ACC_thread_x_id");
   private final Xobject _accBlockIndex = Xcons.Symbol(Xcode.VAR, Xtype.intType, "_ACC_block_x_id");
   private final Xobject _accSyncThreads = ACCutil.getMacroFuncId("_ACC_GPU_M_BARRIER_THREADS", Xtype.voidType).Call();
@@ -73,12 +74,18 @@ public class AccKernel {
 
     String funcName = getFuncInfo(_pb).getArg(0).getString();
     int lineNo = kernelBody.get(0).getLineNo().lineNo();
-    String launchFuncName = ACC_GPU_FUNC_PREFIX + "_" + funcName + "_L" + lineNo;
+    String kernelMainName = ACC_FUNC_PREFIX + funcName + "_L" + lineNo;
+    String launchFuncName = null;
+    if(ACC.platform == ACC.Platform.CUDA){
+      launchFuncName = kernelMainName;
+    }else{
+      launchFuncName = ACC_CL_KERNEL_LAUNCHER_NAME;
+    }
 
     collectOuterVar();
 
     //make deviceKernelDef
-    String deviceKernelName = launchFuncName + ACC_GPU_DEVICE_FUNC_SUFFIX;
+    String deviceKernelName = kernelMainName + ACC_GPU_DEVICE_FUNC_SUFFIX;
     XobjectDef deviceKernelDef = makeDeviceKernelDef(deviceKernelName, _outerIdList, kernelBody);
 
     //make launchFuncDef
@@ -87,20 +94,35 @@ public class AccKernel {
     //add deviceKernel and launchFunction
     XobjectFile devEnv = _decl.getEnvDevice();
     devEnv.add(deviceKernelDef);
-    devEnv.add(launchFuncDef);
+    if(ACC.platform == ACC.Platform.CUDA) {
+      devEnv.add(launchFuncDef);
+    }
 
     //make launchFuncCall
     FunctionType launchFuncType = (FunctionType) launchFuncDef.getFuncType();
     launchFuncType.setFuncParamIdList(launchFuncDef.getDef().getArg(1));
-    Ident launchFuncId = _decl.declExternIdent(launchFuncDef.getName(), launchFuncType);
+    Ident launchFuncId = null;
+    if(ACC.platform == ACC.Platform.CUDA) {
+      launchFuncId = _decl.declExternIdent(launchFuncDef.getName(), launchFuncType);
+    }else{
+      launchFuncId = ACCutil.getMacroFuncId(launchFuncName, Xtype.voidType);
+    }
     XobjList launchFuncArgs = makeLaunchFuncArgs();
 
-    launchFuncArgs.add(getAsyncExpr());
 
     BlockList body = Bcons.emptyBody();
     Xobject decl = gpuManager.getBlockThreadSize();
     Ident confId = body.declLocalIdent("_ACC_conf", Xtype.Array(Xtype.intType, null), StorageClass.AUTO, decl);
-    launchFuncArgs.add(confId.Ref());
+
+    if(ACC.platform == ACC.Platform.CUDA) {
+      launchFuncArgs.add(getAsyncExpr());
+      launchFuncArgs.add(confId.Ref());
+    }else{
+      launchFuncArgs.cons(Xcons.IntConstant(launchFuncArgs.Nargs()));
+      launchFuncArgs.cons(getAsyncExpr());
+      launchFuncArgs.cons(confId.Ref());
+      launchFuncArgs.cons(Xcons.StringConstant(deviceKernelName));
+    }
 
     body.add(launchFuncId.Call(launchFuncArgs));
 
