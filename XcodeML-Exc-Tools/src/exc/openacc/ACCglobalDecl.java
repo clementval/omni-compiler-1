@@ -1,5 +1,6 @@
 package exc.openacc;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -14,15 +15,15 @@ class ACCglobalDecl{
   private static final String ACC_CONSTRUCTOR_FUNC_PREFIX = "acc_traverse_init_file_";
   private static final String ACC_TRAVERSE_INIT_FUNC_NAME = "acc_traverse_init";
   private static final String ACC_TRAVERSE_FINALIZE_FUNC_NAME = "acc_traverse_finalize";
-  private static final String ACC_KERNELS_FINALIZE_FUNC_NAME = "_ACC_kernels_finalize";
-  public static final String ACC_KERNELS_INIT_FUNC_NAME = "_ACC_kernels_init";
+  private static final String ACC_KERNELS_FINALIZE_FUNC_NAME = "_ACC_program_finalize";
+  public static final String ACC_KERNELS_INIT_FUNC_NAME = "_ACC_program_init";
   private XobjectFile   _env;
   private XobjList _globalConstructorFuncBody;
   private XobjList _globalDestructorFuncBody;
   private XobjectFile _env_device;
   private Map<Ident, ACCvar> globalVarMap = new HashMap<Ident, ACCvar>();
   private List<String> _kernelNames = new ArrayList<String>();
-  private Ident _kernelsId = null;
+  private Ident _programId = null;
 
   
   private static String ACC_INIT_FUNC_NAME = "_ACC_init";
@@ -241,24 +242,27 @@ class ACCglobalDecl{
     globalVarMap.put(varId, var);
   }
 
-  Xobject declKernel(String kernelName){
+  int declKernel(String kernelName){
     int size = _kernelNames.size();
 
     if(size == 0){
-      _kernelsId = _env.declStaticIdent("_ACC_kernels", Xtype.Array(Xtype.voidPtrType, null));
+      _programId = _env.declStaticIdent("_ACC_program", Xtype.voidPtrType);
     }
 
     _kernelNames.add(kernelName);
 
-    return Xcons.arrayRef(Xtype.voidType,_kernelsId.getAddr(), Xcons.List(Xcons.IntConstant(size)));
+    return size;
+  }
+
+  Ident getProgramId()
+  {
+    return _programId;
   }
 
   void setupKernelsInitAndFinalize() {
     int numKernels = _kernelNames.size();
     if(numKernels == 0) return;
 
-    ArrayType type = (ArrayType)_kernelsId.Type();
-    type.setArraySize(numKernels);
 
     { //init
       Ident kernelInitFuncId = ACCutil.getMacroFuncId(ACC_KERNELS_INIT_FUNC_NAME, Xtype.voidType);
@@ -269,7 +273,15 @@ class ACCglobalDecl{
       BlockList body = Bcons.emptyBody();
       Ident kernelNamesId = body.declLocalIdent("_ACC_kernel_names", Xtype.Array(Xtype.stringType, numKernels),
               StorageClass.AUTO, nameList);
-      XobjList args = Xcons.List(Xcons.AddrOf(_kernelsId.getAddr()), Xcons.IntConstant(numKernels), kernelNamesId.Ref());
+      String fileName = new File(_env_device.getSourceFileName()).getName();
+      if(ACC.device == ACC.Device.PEZY){
+        fileName = ACCutil.removeExtension(fileName) + ".pz";
+      }
+      XobjList args = Xcons.List(
+              Xcons.AddrOf(_programId.getAddr()),
+              Xcons.StringConstant(fileName),
+              Xcons.IntConstant(numKernels),
+              kernelNamesId.Ref());
       body.add(kernelInitFuncId.Call(args));
       addGlobalConstructor(Bcons.COMPOUND(body).toXobject());
     }
@@ -277,7 +289,7 @@ class ACCglobalDecl{
     { //finalize
       Ident kernelFinalizeFuncId = ACCutil.getMacroFuncId(ACC_KERNELS_FINALIZE_FUNC_NAME, Xtype.voidType);
       BlockList body = Bcons.emptyBody();
-      XobjList args = Xcons.List(_kernelsId.getAddr(), Xcons.IntConstant(numKernels));
+      XobjList args = Xcons.List(_programId.Ref());
       body.add(kernelFinalizeFuncId.Call(args));
       addGlobalDestructor(Bcons.COMPOUND(body).toXobject());
     }

@@ -116,12 +116,14 @@ public class AccKernel {
       launchFuncArgs.add(confId.Ref());
     }else{
       launchFuncId = ACCutil.getMacroFuncId(launchFuncName, Xtype.voidType);
-      Xobject kernelObj = _decl.declKernel(deviceKernelName);
+      int kernelNum = _decl.declKernel(deviceKernelName);
+      Ident programId = _decl.getProgramId();
 
       launchFuncArgs.cons(Xcons.IntConstant(launchFuncArgs.Nargs()));
       launchFuncArgs.cons(getAsyncExpr());
       launchFuncArgs.cons(confId.Ref());
-      launchFuncArgs.cons(kernelObj);
+      launchFuncArgs.cons(Xcons.IntConstant(kernelNum));
+      launchFuncArgs.cons(programId.Ref());
     }
 
     body.add(launchFuncId.Call(launchFuncArgs));
