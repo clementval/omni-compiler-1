@@ -105,8 +105,8 @@ public class AccKernel {
 
 
     BlockList body = Bcons.emptyBody();
-    Xobject decl = gpuManager.getBlockThreadSize();
-    Ident confId = body.declLocalIdent("_ACC_conf", Xtype.Array(Xtype.intType, null), StorageClass.AUTO, decl);
+    Xobject confDecl = gpuManager.getBlockThreadSize();
+    Ident confId = body.declLocalIdent("_ACC_conf", Xtype.Array(Xtype.intType, null), StorageClass.AUTO, confDecl);
     Ident launchFuncId = null;
 
     if(ACC.platform == ACC.Platform.CUDA) {
@@ -115,15 +115,32 @@ public class AccKernel {
       launchFuncArgs.add(getAsyncExpr());
       launchFuncArgs.add(confId.Ref());
     }else{
+      XobjList argDecls = Xcons.List();
+      XobjList argSizeDecls = Xcons.List();
+      for(Xobject x : launchFuncArgs){
+        argDecls.add(Xcons.AddrOf(x));
+        if(x.Type().isPointer()) {
+          argSizeDecls.add(Xcons.SizeOf(Xtype.voidPtrType));
+        }else {
+          argSizeDecls.add(Xcons.SizeOf(x.Type()));
+        }
+      }
+      Ident argSizesId = body.declLocalIdent("_ACC_argsizes", Xtype.Array(Xtype.voidPtrType, null), StorageClass.AUTO, argSizeDecls);
+      Ident argsId = body.declLocalIdent("_ACC_args", Xtype.Array(Xtype.voidPtrType, null), StorageClass.AUTO, argDecls);
+
       launchFuncId = ACCutil.getMacroFuncId(launchFuncName, Xtype.voidType);
       int kernelNum = _decl.declKernel(deviceKernelName);
       Ident programId = _decl.getProgramId();
+      int numArgs = launchFuncArgs.Nargs();
 
-      launchFuncArgs.cons(Xcons.IntConstant(launchFuncArgs.Nargs()));
-      launchFuncArgs.cons(getAsyncExpr());
-      launchFuncArgs.cons(confId.Ref());
-      launchFuncArgs.cons(Xcons.IntConstant(kernelNum));
-      launchFuncArgs.cons(programId.Ref());
+      launchFuncArgs = Xcons.List(
+              programId.Ref(),
+              Xcons.IntConstant(kernelNum),
+              confId.Ref(),
+              getAsyncExpr(),
+              Xcons.IntConstant(numArgs),
+              argSizesId.Ref(),
+              argsId.Ref());
     }
 
     body.add(launchFuncId.Call(launchFuncArgs));
