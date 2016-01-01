@@ -125,7 +125,7 @@ public class AccKernel {
           argSizeDecls.add(Xcons.SizeOf(x.Type()));
         }
       }
-      Ident argSizesId = body.declLocalIdent("_ACC_argsizes", Xtype.Array(Xtype.voidPtrType, null), StorageClass.AUTO, argSizeDecls);
+      Ident argSizesId = body.declLocalIdent("_ACC_argsizes", Xtype.Array(Xtype.unsignedlonglongType, null), StorageClass.AUTO, argSizeDecls);
       Ident argsId = body.declLocalIdent("_ACC_args", Xtype.Array(Xtype.voidPtrType, null), StorageClass.AUTO, argDecls);
 
       launchFuncId = ACCutil.getMacroFuncId(launchFuncName, Xtype.voidType);
