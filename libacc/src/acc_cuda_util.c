@@ -2,12 +2,13 @@
 #include "acc_gpu_internal.h"
 #include <stdio.h>
 #include <stdbool.h>
+#include "cuda_runtime.h"
 
 void _ACC_gpu_alloc(void **addr, size_t size)
 {
   //printf("_ACC_gpu_alloc\n");
   _ACC_DEBUG("alloc addr=%p, size=%zd\n", addr, size)
-  _ACC_gpu_init_current_device_if_not_inited();
+  _ACC_init_current_device_if_not_inited(); //XXX
   cudaError_t cuda_err = cudaMalloc(addr, size);
   if (cuda_err != cudaSuccess) {
     printf("failed to allocate data on GPU\n");
@@ -44,7 +45,7 @@ void _ACC_gpu_calloc(void **addr, size_t size)
 }
 
 void _ACC_gpu_copy(void *host_addr, void *device_addr, size_t size, int direction){
-  cudaError_t cuda_err;
+  cudaError_t cuda_err = cudaSuccess;
   if(direction == _ACC_GPU_COPY_HOST_TO_DEVICE){
 	_ACC_DEBUG("copy host(%p) to dev(%p), size(%zd)\n", host_addr, device_addr, size)
     cuda_err = cudaMemcpy(device_addr, host_addr, size, cudaMemcpyHostToDevice);
@@ -63,7 +64,7 @@ void _ACC_gpu_copy(void *host_addr, void *device_addr, size_t size, int directio
 
 void _ACC_gpu_copy_async(void *host_addr, void *device_addr, size_t size, int direction, int id){
   //printf("_ACC_gpu_copy_async\n");
-  cudaError_t cuda_err;
+  cudaError_t cuda_err = cudaSuccess;
   cudaStream_t stream = _ACC_gpu_get_stream(id);
 
   switch(direction){

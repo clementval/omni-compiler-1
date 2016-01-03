@@ -1,0 +1,104 @@
+#include "acc_internal.h"
+#include "acc_internal_cl.h"
+
+//global variables
+cl_uint _ACC_cl_num_devices; //=1
+cl_device_id _ACC_cl_device_ids[_ACC_CL_MAX_NUM_DEVICES];
+cl_context _ACC_cl_current_context;
+cl_uint _ACC_cl_device_num; //now fixed
+
+static bool is_working = false;
+
+void _ACC_platform_init()
+{
+  if(is_working == true){
+    _ACC_fatal("_ACC_platform_init was called more than once");
+  }
+
+  cl_platform_id platform_id = NULL;
+  cl_uint ret_num_platforms;
+  cl_int ret;
+
+  CL_CHECK(clGetPlatformIDs(1, &platform_id, &ret_num_platforms));
+  if(ret_num_platforms == 0){
+    _ACC_fatal("no available cl_platform");
+  }
+
+  CL_CHECK(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_DEFAULT, _ACC_CL_MAX_NUM_DEVICES, _ACC_cl_device_ids, &_ACC_cl_num_devices));
+  if(_ACC_cl_num_devices == 0){
+    _ACC_fatal("no available cl_device");
+  }
+  
+  _ACC_cl_current_context = clCreateContext(NULL, _ACC_cl_num_devices, _ACC_cl_device_ids, NULL, NULL, &ret);
+  CL_CHECK(ret);
+
+  is_working = true;
+}
+void _ACC_platform_finalize()
+{
+  if(is_working == false){
+    _ACC_fatal("_ACC_platform_finalize was called before _ACC_platform_init");    
+  }
+  CL_CHECK(clReleaseContext(_ACC_cl_current_context));
+  is_working = false;
+}
+
+int _ACC_platform_get_num_devices()
+{
+  return (int)_ACC_cl_num_devices;
+}
+
+bool _ACC_platform_allocate_device(int device_num)
+{
+  if(device_num < _ACC_cl_num_devices){
+    return true;
+  }else{
+    return false;
+  }
+}
+
+void _ACC_platform_set_device_num(int device_num /*0-based*/)
+{
+  if(device_num < 0){
+    _ACC_fatal("device_num < 0 is not allowed");
+  }else{
+    _ACC_cl_device_num = device_num;
+  }
+}
+
+void _ACC_platform_init_device(int device_num /*0-based*/)
+{
+  if(device_num < 0){
+    _ACC_fatal("device_num < 0 is not allowed");
+  }else{
+    _ACC_cl_device_num = device_num;
+  }
+
+  char buf[1024];
+  clGetDeviceInfo(_ACC_cl_device_ids[_ACC_cl_device_num], CL_DEVICE_NAME, sizeof(buf), &buf, NULL);
+  _ACC_DEBUG("CL_DEVICE_NAME=%s\n", buf);
+}
+
+_ACC_mpool_t* _ACC_mpool_create()
+{
+  //FIXME implement
+  return NULL;
+}
+void _ACC_mpool_destroy(_ACC_mpool_t *mpool)
+{
+  //FIXME implement
+  return;
+}
+
+void _ACC_gpu_alloc(void** addr, size_t size)
+{
+  cl_int ret;
+  cl_mem mem = clCreateBuffer(_ACC_cl_current_context, CL_MEM_READ_WRITE, size, NULL, &ret);
+  CL_CHECK(ret);
+  *addr = mem;
+}
+
+void _ACC_gpu_free(void *addr)
+{
+  CL_CHECK(clReleaseMemObject((cl_mem)addr));
+}

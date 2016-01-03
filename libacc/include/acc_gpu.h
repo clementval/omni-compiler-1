@@ -46,6 +46,10 @@ extern "C" {
   cudaStream_t _ACC_gpu_get_stream(int id);
 #endif
 
+  void _ACC_program_init(void **desc, char * kernel_src_filename, int num_kernels, char ** kernel_names);
+  void _ACC_launch(void *program, int kernel_num, int *_ACC_conf, int async_num, int num_args, unsigned long long/*instead of size_t*/ *arg_sizes, void **args);
+  void _ACC_program_finalize(void *program);
+
 #ifdef __cplusplus
 }
 #endif

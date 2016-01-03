@@ -1,23 +1,14 @@
+#include<stdio.h>
 #include "acc_internal.h"
 #include "acc_gpu_internal.h"
 
-//static void* mpool_ptr = NULL;
-//static char mpool_flags[_ACC_GPU_MPOOL_NUM_BLOCKS];
-//static char* mpool_flags = NULL;
-
-typedef struct mpool{
+typedef struct _ACC_mpool_type mpool;
+struct _ACC_mpool_type{
   void *ptr;
   char flags[_ACC_GPU_MPOOL_NUM_BLOCKS];
-}mpool;
+};
 
-//static mpool *mpool_p;
-
-//void _ACC_gpu_mpool_init();
-//void _ACC_gpu_mpool_finalize();
-void _ACC_gpu_mpool_alloc_block(void **);
-void _ACC_gpu_mpool_free_block(void *);
-#include<stdio.h>
-void* _ACC_gpu_mpool_init()
+_ACC_mpool_t* _ACC_mpool_create()
 {
   _ACC_DEBUG("mpool init\n")
   mpool *p = (mpool*)_ACC_alloc(sizeof(mpool));
@@ -25,11 +16,10 @@ void* _ACC_gpu_mpool_init()
   for(int i=0;i<_ACC_GPU_MPOOL_NUM_BLOCKS;i++){
     p->flags[i]=~0;
   }
-  //mpool_p = p;
   return p;
 }
 
-void _ACC_gpu_mpool_finalize(void *p)
+void _ACC_mpool_destroy(_ACC_mpool_t *p)
 {
   mpool* mpool_ptr = (mpool*)p;
   if(mpool_ptr->ptr != NULL){
@@ -38,16 +28,10 @@ void _ACC_gpu_mpool_finalize(void *p)
   mpool_ptr->ptr = NULL;
 }
 
-void _ACC_gpu_mpool_set(void* p)
-{
-  mpool* mpool_p = (mpool*)_ACC_gpu_get_current_mpool();
-  mpool_p = (mpool*)p;
-}
-
 void _ACC_gpu_mpool_alloc_block(void **ptr)
 {
   int i;
-  mpool* mpool_p = (mpool*)_ACC_gpu_get_current_mpool();
+  mpool* mpool_p = _ACC_get_mpool();
   for(i=0;i<_ACC_GPU_MPOOL_NUM_BLOCKS;i++){
     if(mpool_p->flags[i]){
       mpool_p->flags[i] = 0;
@@ -61,7 +45,7 @@ void _ACC_gpu_mpool_alloc_block(void **ptr)
 
 void _ACC_gpu_mpool_free_block(void *ptr)
 {
-  mpool* mpool_p = (mpool*)_ACC_gpu_get_current_mpool();
+  mpool* mpool_p = _ACC_get_mpool();
   long long i = ((long long)((char*)ptr - (char*)mpool_p->ptr)) / _ACC_GPU_MPOOL_BLOCK_SIZE;
   if(i>=0 && i<_ACC_GPU_MPOOL_NUM_BLOCKS){
     mpool_p->flags[i] = ~0;

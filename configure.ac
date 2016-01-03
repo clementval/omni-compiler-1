@@ -947,8 +947,10 @@ AC_SUBST(GPU_CFLAGS)
 
 AC_ARG_WITH(cuda,
     [  --with-cuda=DIR             CUDA installation path (default: /usr/local/cuda)],
-    [GPGPU_PREFIX="${withval}"], [GPGPU_PREFIX="/usr/local/cuda"])
+    [GPGPU_PREFIX="${withval}"; use_cuda=yes], [GPGPU_PREFIX="/usr/local/cuda"; use_cuda=yes])
 
+AM_CONDITIONAL(CUDA, test x${use_cuda} = xyes)
+AM_CONDITIONAL(OPENCL, test x${use_cuda} = xyes)
 AC_SUBST(GPGPU_PREFIX)
 
 # --------------------------------------------------------------------
