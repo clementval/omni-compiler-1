@@ -3,6 +3,8 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
+import java.util.ArrayList;
+import java.util.List;
 
 import xcodeml.util.XmOption;
 
@@ -60,13 +62,35 @@ class ACCgpuDecompiler {
       envDevice.setProgramAttributes(filename, "CUDA", "", "", "");
       Writer w = new BufferedWriter(new FileWriter(filename), BUFFER_SIZE);
       ACCgpuDecompileWriter writer = new ACCgpuDecompileWriter(w, envDevice);
-      
-      writer.println("#include \"acc.h\"");
-      writer.println("#include \"acc_gpu.h\"");
-      writer.println("#include \"acc_gpu_func.hpp\"");
-      if(XmOption.isXcalableMP()){
-        writer.println("#include \"xmp_index_macro.h\"");
+
+      List<String> includeLines = new ArrayList<String>();
+
+      switch(ACC.platform){
+        case CUDA:
+          includeLines.add("#include \"acc.h\"");
+          includeLines.add("#include \"acc_gpu.h\"");
+          includeLines.add("#include \"acc_gpu_func.hpp\"");
+          break;
+        case OpenCL:
+          includeLines.add("#include \"acc.h\"");
+          if(ACC.device == ACC.Device.PEZY){
+            includeLines.add("#include \"acc_pezy.h\"");
+          }else{
+            includeLines.add("#include \"acc_cl.h\"");
+          }
+          break;
+        default:
+          ACC.fatal("unknown platform");
       }
+
+      if(XmOption.isXcalableMP()){
+        includeLines.add("#include \"xmp_index_macro.h\"");
+      }
+
+      for(String includeLine : includeLines){
+        writer.println(includeLine);
+      }
+
       writer.println();
 
       writer.printAll();
