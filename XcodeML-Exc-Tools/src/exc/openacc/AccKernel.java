@@ -6,6 +6,8 @@ import exc.object.*;
 import java.util.*;
 
 public class AccKernel {
+  private static final String ACC_CALC_IDX_FUNC = "_ACC_calc_idx";
+  private static final String ACC_INIT_ITER_FUNC_PREFIX = "_ACC_init_iter_";
   private final ACCglobalDecl _decl;
   private final PragmaBlock _pb;
   private final AccInformation _kernelInfo; //parallel or kernels info
@@ -19,8 +21,9 @@ public class AccKernel {
   private static final String ACC_CL_KERNEL_LAUNCHER_NAME = "_ACC_launch";
   private final Xobject _accThreadIndex = Xcons.Symbol(Xcode.VAR, Xtype.intType, "_ACC_thread_x_id");
   private final Xobject _accBlockIndex = Xcons.Symbol(Xcode.VAR, Xtype.intType, "_ACC_block_x_id");
-  private final Xobject _accSyncThreads = ACCutil.getMacroFuncId("_ACC_GPU_M_BARRIER_THREADS", Xtype.voidType).Call();
+  private final Xobject _accSyncThreads = ACCutil.getMacroFuncId("_ACC_sync_threads", Xtype.voidType).Call();
   private final Xobject _accAsyncSync = Xcons.Symbol(Xcode.VAR, Xtype.intType, "ACC_ASYNC_SYNC");
+  private final Xobject _accFlush = ACCutil.getMacroFuncId("_ACC_flush", Xtype.voidType).Call();
 
   private final List<Block> _kernelBlocks;
   private List<Ident> _outerIdList;
@@ -303,6 +306,10 @@ public class AccKernel {
 
     kernelBuildInfo.addFinalizeBlock(reductionManager.makeReduceAndFinalizeFuncs()); //deviceKernelBody.add(reductionManager.makeReduceAndFinalizeFuncs());
 
+    if(ACC.device == ACC.Device.PEZY){
+      kernelBuildInfo.addFinalizeBlock(Bcons.Statement(_accFlush));
+    }
+
     BlockList result = Bcons.emptyBody(kernelBuildInfo.getLocalIdList(), null);
     for(Block b : kernelBuildInfo.getInitBlockList()){
       result.add(b);
@@ -435,7 +442,7 @@ public class AccKernel {
         resultBlock = Bcons.IF(Xcons.binaryOp(Xcode.LOG_EQ_EXPR, _accBlockIndex, Xcons.IntConstant(0)), resultBlock, Bcons.emptyBlock()); //if(_ACC_block_x_id == 0){b}
       } else if (!outerParallelisms.contains(ACCpragma.VECTOR)) {
         Block ifBlock = Bcons.IF(Xcons.binaryOp(Xcode.LOG_EQ_EXPR, _accThreadIndex, Xcons.IntConstant(0)), resultBlock, null);  //if(_ACC_thread_x_id == 0){b}
-        Block syncThreadBlock = ACCutil.createFuncCallBlock("_ACC_GPU_M_BARRIER_THREADS", Xcons.List());
+        Block syncThreadBlock = Bcons.Statement(_accSyncThreads);
         resultBlock = Bcons.COMPOUND(Bcons.blockList(ifBlock, syncThreadBlock));
       }
       return resultBlock;
@@ -654,7 +661,7 @@ public class AccKernel {
       Ident indVarId = Ident.Local(indVarName, indVarType);
       Ident nIterId = resultBlockBuilder.declLocalIdent("_ACC_niter_" + indVarName, idxVarType);
       Block calcNiterFuncCall = ACCutil.createFuncCallBlock("_ACC_calc_niter", Xcons.List(nIterId.getAddr(), init, cond, step));
-      Block calcIdxFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_calc_idx", Xcons.List(vIdxId.Ref(), indVarId.getAddr(), init, cond, step));
+      Block calcIdxFuncCall = ACCutil.createFuncCallBlock(ACC_CALC_IDX_FUNC, Xcons.List(vIdxId.Ref(), indVarId.getAddr(), init, cond, step));
 
       resultBlockBuilder.addInitBlock(calcNiterFuncCall);
 
@@ -679,7 +686,7 @@ public class AccKernel {
     }
     initIterFuncArgs.add(nIterAll);
 
-    Block initIterFunc = ACCutil.createFuncCallBlock("_ACC_gpu_init_" + execMethodName + "_iter", initIterFuncArgs);
+    Block initIterFunc = ACCutil.createFuncCallBlock(ACC_INIT_ITER_FUNC_PREFIX + execMethodName, initIterFuncArgs);
     resultBlockBuilder.addInitBlock(initIterFunc);
 
 
