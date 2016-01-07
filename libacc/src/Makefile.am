@@ -3,6 +3,8 @@ CC=@MPI_CC@
 GPUCC=@GPU_CMD@
 GPUCFLAGS=@GPU_CFLAGS@
 CUDA_DIR=@GPGPU_PREFIX@
+OPENCL_DIR=@GPGPU_PREFIX@
+OMNI_DIR=@OMNI_HOME@
 AM_CFLAGS     = -I$(ACC_INC_DIR) @MPI_CFLAGS@
 #COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 #	$(CPPFLAGS) $(AM_CFLAGS)
@@ -24,6 +26,7 @@ endif
 if OPENCL
 libacc_cl_a_SOURCES	= acc_cl.c acc_memory_cl.c acc_queue_cl.c acc_kernel_cl.c
 libacc_cl_a_LIBADD	= acc_cl.o acc_memory_cl.o acc_queue_cl.o acc_kernel_cl.o
+AM_CFLAGS		+= -I$(OPENCL_DIR)/include -DOMNI_INCLUDE_DIR="$(OMNI_DIR)/include"
 endif
 
 .cu.o:

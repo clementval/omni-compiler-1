@@ -3,6 +3,10 @@
 #include "acc_internal_cl.h"
 #include <stdio.h>
 
+#define GET_STR(str) #str
+#define SET_BUILD_OPTION(include_dir) const static char build_option[] = "-I"GET_STR(include_dir)
+
+SET_BUILD_OPTION(OMNI_INCLUDE_DIR);
 
 struct _ACC_kernel_type {
   char *name;
@@ -66,12 +70,16 @@ void _ACC_program_init(_ACC_program_t **desc, char * kernel_src_filename, int nu
   char *kernel_src = (char*)_ACC_alloc(sizeof(char)*(kernel_src_size));
   size_t read_byte = fread(kernel_src, sizeof(char), kernel_src_size, fp);
 
+  if(read_byte < kernel_src_size){
+    _ACC_fatal("faild to read kernel_file");
+  }
+
   //close kernel source file
   fclose(fp);
 
-  //fprintf(stderr, "filesize = %ld\n", kernel_src_size);
-  //fprintf(stderr, "read bytes %zd\n", read_byte);
-  //fprintf(stderr, "%s\n", _kernel_src);
+  _ACC_DEBUG("filesize = %ld\n", kernel_src_size);
+  _ACC_DEBUG("read bytes %zd\n", read_byte);
+  _ACC_DEBUG("%s\n", _kernel_src);
 
   //create program
   _ACC_DEBUG("create program \"%s\"\n", kernel_src_filename);
@@ -81,7 +89,6 @@ void _ACC_program_init(_ACC_program_t **desc, char * kernel_src_filename, int nu
   free(kernel_src);
 
   //build program
-  char *build_option="-I/home/tabuchi/bin/xmp-git-pezy/include";
   ret = clBuildProgram(program->program, _ACC_cl_num_devices, _ACC_cl_device_ids, build_option,  NULL, NULL);
   if(ret != CL_SUCCESS){
     //print build error
