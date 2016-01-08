@@ -30,8 +30,13 @@ void _ACC_launch(_ACC_program_t *program, int kernel_num, int *_ACC_conf, int as
 
   int num_gangs = _ACC_conf[0];
   int vector_length = _ACC_conf[2];
+#ifdef PZCL
+  size_t global_work_size = PZSDK_RoundUpMultipleOfN(num_gangs * vector_length, 128);
+  size_t local_work_size = 1;
+#else
   size_t global_work_size = num_gangs * vector_length;
   size_t local_work_size = vector_length;
+#endif
 
   _ACC_DEBUG("enqueue \"%s\" (%zd, %zd)\n", program->kernels[kernel_num].name,global_work_size, local_work_size)
 
@@ -43,6 +48,7 @@ void _ACC_launch(_ACC_program_t *program, int kernel_num, int *_ACC_conf, int as
 
   //wait kernel execution
   if(async_num == ACC_ASYNC_SYNC){
+    //XXX is flush need?
     //CL_CHECK(clFlush(command_queue));
     CL_CHECK(clWaitForEvents(1, &event));
   }
@@ -79,17 +85,30 @@ void _ACC_program_init(_ACC_program_t **desc, char * kernel_src_filename, int nu
 
   _ACC_DEBUG("filesize = %ld\n", kernel_src_size);
   _ACC_DEBUG("read bytes %zd\n", read_byte);
-  _ACC_DEBUG("%s\n", _kernel_src);
+  //  _ACC_DEBUG("%s\n", kernel_src);
 
   //create program
   _ACC_DEBUG("create program \"%s\"\n", kernel_src_filename);
   
+#ifdef PEZY
+  {
+    cl_int binary_statuses[_ACC_cl_num_devices];
+    program->program = clCreateProgramWithBinary(_ACC_cl_current_context, _ACC_cl_num_devices, _ACC_cl_device_ids, &kernel_src_size, 
+						 (const unsigned char **)&kernel_src,
+						 binary_statuses, &ret);
+    for(int i = 0; i < _ACC_cl_num_devices; i++){
+      CL_CHECK(binary_statuses[i]);
+    }
+  }
+#else
   program->program = clCreateProgramWithSource(_ACC_cl_current_context, 1, (const char **)&kernel_src, &kernel_src_size, &ret);
+#endif
   CL_CHECK(ret);
   free(kernel_src);
 
   //build program
   ret = clBuildProgram(program->program, _ACC_cl_num_devices, _ACC_cl_device_ids, build_option,  NULL, NULL);
+#ifndef PEZY
   if(ret != CL_SUCCESS){
     //print build error
     const int max_error_length = 1024;
@@ -103,6 +122,7 @@ void _ACC_program_init(_ACC_program_t **desc, char * kernel_src_filename, int nu
     _ACC_free(error_log);
     exit(1);
   }
+#endif
 
   //create kernels
   program->kernels = _ACC_alloc(sizeof(_ACC_kernel_t) * num_kernels);

@@ -10,10 +10,8 @@ extern "C" {
 #endif
 
   //acc_gpu_util.cu
-  void _ACC_gpu_alloc(void **addr, size_t size);
   void _ACC_gpu_malloc(void **addr, size_t size);
   void _ACC_gpu_calloc(void **addr, size_t size);
-  void _ACC_gpu_free(void *addr);
   void _ACC_gpu_copy(void *host_addr, void *device_addr, size_t size, int direction);
   void _ACC_gpu_copy_async(void *host_addr, void *device_addr, size_t size, int direction, int id);
   bool _ACC_gpu_is_pagelocked(void *p);

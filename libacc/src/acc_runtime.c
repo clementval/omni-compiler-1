@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include "acc_internal.h"
-#include "acc_gpu_internal.h"
 
 
 /*device_num == 0 means that default device num will be used*/

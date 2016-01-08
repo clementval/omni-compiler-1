@@ -152,6 +152,8 @@ extern "C" {
   _ACC_mpool_t* _ACC_mpool_create();
   void _ACC_mpool_destroy(_ACC_mpool_t *);
 
+  void _ACC_gpu_alloc(void **addr, size_t size);
+  void _ACC_gpu_free(void *addr);
 
 #ifdef __cplusplus
 }

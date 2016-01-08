@@ -947,11 +947,24 @@ AC_SUBST(GPU_CFLAGS)
 
 AC_ARG_WITH(cuda,
     [  --with-cuda=DIR             CUDA installation path (default: /usr/local/cuda)],
-    [GPGPU_PREFIX="${withval}"; use_cuda=yes], [GPGPU_PREFIX="/usr/local/cuda"; use_cuda=yes])
+    [GPGPU_PREFIX="${withval}"; use_cuda=yes; use_opencl=yes], [use_cuda=no])
+
+if test "x${GPGPU_PREFIX}" = "xyes"; then
+  GPGPU_PREFIX=/usr/local/cuda
+fi
+
+AC_SUBST(GPGPU_PREFIX)
+
+AC_ARG_WITH(pezy,
+    [  --with-pezy=DIR             Pezy SDK installation path],
+    [PEZY_PREFIX="${withval}"; use_pezy=yes; use_opencl=yes], [use_pezy=no])
+
+AM_CONDITIONAL(PEZY, test x${use_pezy} = xyes)
+AC_SUBST(PEZY_PREFIX)
+
 
 AM_CONDITIONAL(CUDA, test x${use_cuda} = xyes)
-AM_CONDITIONAL(OPENCL, test x${use_cuda} = xyes)
-AC_SUBST(GPGPU_PREFIX)
+AM_CONDITIONAL(OPENCL, test x${use_opencl} = xyes)
 
 # --------------------------------------------------------------------
 # specify libxmp path

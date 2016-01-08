@@ -24,9 +24,19 @@ void _ACC_platform_init()
     _ACC_fatal("no available cl_platform");
   }
 
-  CL_CHECK(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_DEFAULT, _ACC_CL_MAX_NUM_DEVICES, _ACC_cl_device_ids, &_ACC_cl_num_devices));
-  if(_ACC_cl_num_devices == 0){
+  cl_uint ret_num_devices;
+  CL_CHECK(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_DEFAULT, _ACC_CL_MAX_NUM_DEVICES, _ACC_cl_device_ids, &ret_num_devices));
+  if(ret_num_devices == 0){
     _ACC_fatal("no available cl_device");
+  }
+  
+  _ACC_DEBUG("req =%d, available devices=%d\n", _ACC_CL_MAX_NUM_DEVICES, ret_num_devices);
+
+  if(ret_num_devices <= _ACC_CL_MAX_NUM_DEVICES){
+    _ACC_cl_num_devices = ret_num_devices;
+  }else{
+    fprintf(stderr, "available devices are limited by _ACC_CL_MAX_NUM_DEVICES=%d\n", _ACC_CL_MAX_NUM_DEVICES);
+    _ACC_cl_num_devices = _ACC_CL_MAX_NUM_DEVICES;
   }
   
   _ACC_cl_current_context = clCreateContext(NULL, _ACC_cl_num_devices, _ACC_cl_device_ids, NULL, NULL, &ret);

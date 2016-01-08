@@ -174,9 +174,36 @@ for c_file in "${c_files[@]}"; do
             omni_exec rm -f "${FILE_O_TMP}"
 	fi
     elif [ $ACC_PLATFORM = "OpenCL" ]; then
-	FILE_CL=${TEMP_DIR}/"${FILE_NAME}"_pp.cl
-	if [ -e "${FILE_CL}" ]; then
-	    omni_exec cp "${FILE_CL}" "${FILE_NAME}_pp.cl"
+	if [ $ACC_DEVICE = "PEZY" ]; then
+	    #pzcl kernel compile
+	    FILE_PZC=${TEMP_DIR}/"${FILE_NAME}"_pp.pzc
+	    if [ -e "${FILE_PZC}" ]; then
+		FILE_IR=${TEMP_DIR}/"${FILE_NAME}"_pp.ir
+		FILE_IRO=${TEMP_DIR}/"${FILE_NAME}"_pp.iro
+		FILE_SYM=${TEMP_DIR}/"${FILE_NAME}"_pp.sym
+		FILE_OBJ=${TEMP_DIR}/"${FILE_NAME}"_pp.o
+		FILE_PZS=${TEMP_DIR}/"${FILE_NAME}"_pp.pzs
+		FILE_LL=${TEMP_DIR}/"${FILE_NAME}"_pp.ll
+		FILE_HEX=${TEMP_DIR}/"${FILE_NAME}"_pp.hex
+		FILE_PZ=${TEMP_DIR}/"${FILE_NAME}"_pp.pz
+		FILE_USER_PZ=`basename "${C_FILE}" .c`_pp.pz
+		omni_exec ${OMNI_PEZY_PREFIX}/bin/clang -target pz -mcpu=sc -emit-llvm -O3  -fno-threadsafe-statics -c -x c++ -D_PZC_KERNEL -D_PZ1_INSTANCE -I${OMNI_PEZY_PREFIX}/inc -I${OMNI_HOME}/include -c ${FILE_PZC} -o ${FILE_IR}
+		omni_exec ${OMNI_PEZY_PREFIX}/bin/llvm-link ${OMNI_PEZY_PREFIX}/bin/pzmath.pzo ${FILE_IR} -o ${FILE_IRO}  # Make Obj
+		omni_exec ${OMNI_PEZY_PREFIX}/bin/llvm-nm ${FILE_IRO} | grep -G "T _Z[0-9]*pz[c,1]_" > ${FILE_SYM}
+		omni_exec ${OMNI_PEZY_PREFIX}/bin/opt -O3 -pz-link-opts -internalize-public-api-file ${FILE_SYM} ${FILE_IRO} -o=${FILE_OBJ}
+		omni_exec ${OMNI_PEZY_PREFIX}/bin/llvm-link ${OMNI_PEZY_PREFIX}/bin/pzcrt.pzo ${FILE_OBJ} -o ${FILE_OBJ}
+		omni_exec ${OMNI_PEZY_PREFIX}/bin/llc -march=pz -mcpu=sc -O3 ${FILE_OBJ} -o ${FILE_PZS}
+		omni_exec ${OMNI_PEZY_PREFIX}/bin/clang -E -x c++ -DPZ_LLVMMC_ASM -I${OMNI_PEZY_PREFIX}/inc ${FILE_PZS} -o ${FILE_LL}
+		omni_exec ${OMNI_PEZY_PREFIX}/bin/llvm-mc -filetype=obj -arch=pz -mcpu=sc  ${FILE_LL} -o ${FILE_HEX}
+		omni_exec ${OMNI_PEZY_PREFIX}/bin/pzlink -v ${FILE_HEX} -o ${FILE_PZ}
+		omni_exec cp "${FILE_PZ}" "${FILE_USER_PZ}"
+	    fi
+	else
+	    FILE_CL=${TEMP_DIR}/"${FILE_NAME}"_pp.cl
+	    FILE_USER_CL=`basename "${C_FILE}" .c`_pp.cl
+	    if [ -e "${FILE_CL}" ]; then
+		omni_exec cp "${FILE_CL}" "${FILE_USER_CL}"
+	    fi
 	fi
     fi
 
@@ -212,7 +239,11 @@ if [ $ENABLE_ACC = true ]; then
     if [ $ACC_PLATFORM = "CUDA" ]; then
 	OMNI_LINKER_OPT="$OMNI_LINKER_OPT $OMNI_CUDA_LIB"
     elif [ $ACC_PLATFORM = "OpenCL" ]; then
-	OMNI_LINKER_OPT="$OMNI_LINKER_OPT $OMNI_OPENCL_LIB"
+	if [ $ACC_DEVICE = "PEZY" ]; then
+	    OMNI_LINKER_OPT="$OMNI_LINKER_OPT $OMNI_PEZY_LIB"
+	else
+	    OMNI_LINKER_OPT="$OMNI_LINKER_OPT $OMNI_OPENCL_LIB"
+	fi
     fi
     obj_files+=("$TRAVERSE_FILE_O")
 else

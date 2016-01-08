@@ -3,7 +3,13 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+
+#ifdef PEZY
+#include "pzcl/pzcl_ocl_wrapper.h"
+#include "PZSDKHelper.h"
+#else
 #include <CL/cl.h>
+#endif
 
 struct _ACC_memory_type{
   void *host_addr;
@@ -35,7 +41,11 @@ struct _ACC_memory_type{
 #define _ACC_COPY_HOST_TO_DEVICE 400
 #define _ACC_COPY_DEVICE_TO_HOST 401
 
+#ifdef PEZY
+#define _ACC_CL_MAX_NUM_DEVICES 1
+#else
 #define _ACC_CL_MAX_NUM_DEVICES 4
+#endif
 
 //global variables
 extern cl_context _ACC_cl_current_context;
