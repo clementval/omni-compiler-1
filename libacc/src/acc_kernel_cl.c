@@ -30,7 +30,10 @@ void _ACC_launch(_ACC_program_t *program, int kernel_num, int *_ACC_conf, int as
 
   int num_gangs = _ACC_conf[0];
   int vector_length = _ACC_conf[2];
-#ifdef PZCL
+#ifdef PEZY
+  if(vector_length != 8){
+    _ACC_fatal("vector_length must be 8");
+  }
   size_t global_work_size = PZSDK_RoundUpMultipleOfN(num_gangs * vector_length, 128);
   size_t local_work_size = 1;
 #else

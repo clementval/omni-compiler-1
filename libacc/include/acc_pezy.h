@@ -20,6 +20,23 @@ void _ACC_init_iter_block_thread_x(T *bt_idx, T *bt_cond, T *bt_step, T0 totalIt
   *bt_step = /*blockDim.x*/get_maxtid();
 }
 
+template<typename T, typename T0>
+static inline
+void _ACC_init_iter_block_x(T *gang_iter, T *gang_cond, T *gang_step, T0 totaliter){
+  T0 gang_size = _ACC_M_CEILi(totaliter, /*gridDim.x*/get_maxpid());
+  *gang_iter = gang_size * /*blockIdx.x*/get_pid();
+  *gang_cond = _ACC_M_MIN(*gang_iter + gang_size, totaliter);
+  *gang_step = 1;
+}
+
+template<typename T, typename T0>
+static inline
+void _ACC_init_iter_thread_x(T *iter, T *cond, T *step, T0 totaliter){
+  *iter = /*threadIdx.x*/get_tid();
+  *cond = totaliter;
+  *step = /*blockDim.x*/get_maxtid();
+}
+
 template<typename T, typename T0, typename T1, typename T2>
 static inline
 void _ACC_calc_niter(T *niter, T0 init, T1 cond, T2 step)
