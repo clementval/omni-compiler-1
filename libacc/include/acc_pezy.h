@@ -63,5 +63,6 @@ void _ACC_flush()
   flush();
 }
 
+#define _ACC_thread_x_id (get_tid())
 
 #endif
