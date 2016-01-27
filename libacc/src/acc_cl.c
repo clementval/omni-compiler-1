@@ -112,3 +112,15 @@ void _ACC_gpu_free(void *addr)
 {
   CL_CHECK(clReleaseMemObject((cl_mem)addr));
 }
+
+
+
+/// OpenACC API for OpenCL
+void* acc_get_current_opencl_device()
+{
+  return _ACC_cl_device_ids[_ACC_cl_device_num];
+}
+void* acc_get_current_opencl_context()
+{
+  return _ACC_cl_current_context;
+}

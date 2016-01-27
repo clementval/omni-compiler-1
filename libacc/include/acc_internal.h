@@ -123,6 +123,7 @@ extern "C" {
   void _ACC_gpu_get_block_count(unsigned **count);
   void _ACC_gpu_get_block_count_async(unsigned **count, int async_num);
   _ACC_queue_t* _ACC_queue_map_get_queue(int async_num);
+  void _ACC_queue_map_set_queue(int async_num, _ACC_queue_t* queue);
 
   //acc_platform?
   void _ACC_platform_set_device_num(int device_num);

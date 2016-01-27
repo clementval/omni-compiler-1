@@ -55,9 +55,10 @@ void _ACC_launch(_ACC_program_t *program, int kernel_num, int *_ACC_conf, int as
   _ACC_DEBUG("enqueue \"%s\" (%zd, %zd)\n", program->kernels[kernel_num].name,global_work_size, local_work_size)
 
   cl_event event;
+  cl_event* ev_p = (async_num == ACC_ASYNC_SYNC)? &event : NULL;
   _ACC_queue_t *queue = _ACC_queue_map_get_queue(async_num);
   cl_command_queue command_queue = _ACC_queue_get_command_queue(queue);
-  CL_CHECK(clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, &event));
+  CL_CHECK(clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_work_size, &local_work_size, 0, NULL, ev_p));
   //FIXME set last event  //_ACC_queue_set_last_event(event);
 
   //wait kernel execution
@@ -65,6 +66,7 @@ void _ACC_launch(_ACC_program_t *program, int kernel_num, int *_ACC_conf, int as
     //XXX is flush need?
     //CL_CHECK(clFlush(command_queue));
     CL_CHECK(clWaitForEvents(1, &event));
+    CL_CHECK(clReleaseEvent(event));
     //CL_CHECK(clFinish(command_queue));
   }
 }

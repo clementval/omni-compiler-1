@@ -99,6 +99,28 @@ _ACC_queue_t* _ACC_queue_map_get_queue(int async_num)
   return new_queue;
 }
 
+void _ACC_queue_map_set_queue(int async_num, _ACC_queue_t* queue)
+{
+#ifdef ASYNC_NOVAL_EQUALS_ASYNC_SYNC
+  // this statement will be removed
+  if(async_num == ACC_ASYNC_NOVAL){
+    _ACC_queue_map_set_queue(ACC_ASYNC_SYNC, queue);
+    return;
+  }
+#endif
+  
+  _ACC_queue_map_t *queue_map = _ACC_get_queue_map();
+  int hash = calc_hash(async_num, queue_map->hashtable_size);
+
+  for(queue_list *entry = &(queue_map->queue_lists[hash]); entry != NULL; entry = entry->next){
+    if(entry->async_num == async_num){
+      _ACC_fatal("queue has been registered already");
+    }
+  }
+
+  add_queue(queue_map, async_num, queue);
+}
+
 void _ACC_gpu_wait(int async_num)
 {
   _ACC_queue_t* queue = _ACC_queue_map_get_queue(async_num);

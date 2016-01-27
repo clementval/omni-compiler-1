@@ -83,3 +83,19 @@ cl_command_queue _ACC_queue_get_command_queue(_ACC_queue_t *queue)
 {
   return queue->command_queue;
 }
+
+cl_command_queue acc_get_opencl_queue(int async_num)
+{
+  _ACC_queue_t *queue = _ACC_queue_map_get_queue(async_num);
+  return _ACC_queue_get_command_queue(queue);
+}
+void acc_set_opencl_queue(int async, cl_command_queue command_queue)
+{
+  _ACC_queue_t *queue = (_ACC_queue_t *)_ACC_alloc(sizeof(_ACC_queue_t));
+  queue->command_queue;
+  queue->last_event = NULL;
+  queue->mpool = NULL;
+  queue->block_count = NULL;
+
+  _ACC_queue_map_set_queue(async, queue);
+}
