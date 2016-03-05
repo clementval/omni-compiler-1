@@ -128,7 +128,7 @@ void _ACC_program_init(_ACC_program_t **desc, char * kernel_src_filename, int nu
 #ifndef PEZY
   if(ret != CL_SUCCESS){
     //print build error
-    const int max_error_length = 1024;
+    const int max_error_length = 1024*1024;
     size_t returned_size;
     char *error_log = _ACC_alloc(sizeof(char) * max_error_length + 1);
     CL_CHECK(clGetProgramBuildInfo(program->program,

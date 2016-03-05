@@ -33,8 +33,8 @@ AM_CFLAGS		+= -I$(OPENCL_DIR)/include
 endif
 
 lib_LIBRARIES		+= libacc_cl.a
-libacc_cl_a_SOURCES	= acc_cl.c acc_memory_cl.c acc_queue_cl.c acc_kernel_cl.c
-libacc_cl_a_LIBADD	= acc_cl.o acc_memory_cl.o acc_queue_cl.o acc_kernel_cl.o
+libacc_cl_a_SOURCES	= acc_cl.c acc_memory_cl.c acc_queue_cl.c acc_kernel_cl.c acc_mpool_cl.c
+libacc_cl_a_LIBADD	= acc_cl.o acc_memory_cl.o acc_queue_cl.o acc_kernel_cl.o acc_mpool_cl.o
 AM_CFLAGS		+= -DOMNI_INCLUDE_DIR="$(OMNI_DIR)/include"
 endif
 

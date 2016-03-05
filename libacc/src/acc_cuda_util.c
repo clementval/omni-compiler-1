@@ -66,6 +66,10 @@ void _ACC_gpu_copy(void *host_addr, void *device_addr, size_t size, int directio
   }
 }
 
+void _ACC_copy(void *host_addr, void *device_addr, size_t size, int direction){
+  _ACC_gpu_copy(host_addr, device_addr, size, direction);
+}
+
 void _ACC_gpu_copy_async(void *host_addr, void *device_addr, size_t size, int direction, int id){
   //printf("_ACC_gpu_copy_async\n");
   cudaError_t cuda_err = cudaSuccess;
@@ -85,6 +89,10 @@ void _ACC_gpu_copy_async(void *host_addr, void *device_addr, size_t size, int di
   if(cuda_err != cudaSuccess){
     _ACC_gpu_fatal(cuda_err);
   }
+}
+
+void _ACC_copy_async(void *host_addr, void *device_addr, size_t size, int direction, int async){
+  _ACC_gpu_copy_async(host_addr, device_addr, size, direction, async);
 }
 
 void _ACC_gpu_register_memory(void *host_addr, size_t size){

@@ -23,11 +23,6 @@ extern "C" {
   cudaStream_t _ACC_gpu_get_stream(int id);
 
 
-  //acc_gpu_mpool.cu
-  void _ACC_gpu_mpool_alloc_block(void **);
-  void _ACC_gpu_mpool_free_block(void *);
-  void _ACC_gpu_mpool_alloc(void **ptr, long long size, void *mpool, long long *pos);
-  void _ACC_gpu_mpool_free(void *ptr, void *mpool);
 
   //acc_gpu_pack.cu
   void _ACC_gpu_pack_data(void *dst, void *src, int dim, unsigned long long total_elmnts, int type_size, unsigned long long* info, int asyncId);

@@ -26,9 +26,10 @@ void _ACC_mpool_destroy(_ACC_mpool_t *p)
     _ACC_gpu_free(mpool_ptr->ptr);
   }
   mpool_ptr->ptr = NULL;
+  _ACC_free(mpool_ptr);
 }
 
-void _ACC_gpu_mpool_alloc_block(void **ptr)
+void _ACC_mpool_alloc_block(void **ptr)
 {
   int i;
   mpool* mpool_p = _ACC_get_mpool();
@@ -43,7 +44,7 @@ void _ACC_gpu_mpool_alloc_block(void **ptr)
   return;
 }
 
-void _ACC_gpu_mpool_free_block(void *ptr)
+void _ACC_mpool_free_block(void *ptr)
 {
   mpool* mpool_p = _ACC_get_mpool();
   long long i = ((long long)((char*)ptr - (char*)mpool_p->ptr)) / _ACC_GPU_MPOOL_BLOCK_SIZE;
@@ -54,7 +55,9 @@ void _ACC_gpu_mpool_free_block(void *ptr)
   }
 }
 
-void _ACC_gpu_mpool_alloc(void **ptr, long long size, void *mpool, long long *pos){
+
+
+void _ACC_mpool_alloc(void **ptr, long long size, void *mpool, long long *pos){
   const int align = 8;
   long long aligned_size = ((size - 1) / align + 1) * align;
   if(*pos + aligned_size <= _ACC_GPU_MPOOL_BLOCK_SIZE){
@@ -65,7 +68,7 @@ void _ACC_gpu_mpool_alloc(void **ptr, long long size, void *mpool, long long *po
   }
 }
 
-void _ACC_gpu_mpool_free(void *ptr, void *mpool)
+void _ACC_mpool_free(void *ptr, void *mpool)
 {
   long long pos = (long long)((char*)ptr - (char*)mpool);
   if(pos < 0 || pos >= _ACC_GPU_MPOOL_BLOCK_SIZE){

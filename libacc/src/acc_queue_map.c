@@ -166,14 +166,14 @@ int _ACC_gpu_test_all()
 }
 
 
-void _ACC_gpu_mpool_get_async(void **ptr, int async_num)
+void _ACC_mpool_get_async(void **ptr, int async_num)
 {
   _ACC_queue_t *queue = _ACC_queue_map_get_queue(async_num);
   *ptr = _ACC_queue_get_mpool(queue);
 }
-void _ACC_gpu_mpool_get(void **ptr)
+void _ACC_mpool_get(void **ptr)
 {
-  _ACC_gpu_mpool_get_async(ptr, ACC_ASYNC_SYNC);
+  _ACC_mpool_get_async(ptr, ACC_ASYNC_SYNC);
 }
 void _ACC_gpu_get_block_count_async(unsigned **count, int async_num)
 {

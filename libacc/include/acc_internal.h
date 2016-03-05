@@ -118,8 +118,8 @@ extern "C" {
   void _ACC_gpu_wait_all();
   int _ACC_gpu_test(int async_num);
   int _ACC_gpu_test_all();
-  void _ACC_gpu_mpool_get(void **ptr);
-  void _ACC_gpu_mpool_get_async(void **ptr, int async_num);
+  void _ACC_mpool_get(void **ptr);
+  void _ACC_mpool_get_async(void **ptr, int async_num);
   void _ACC_gpu_get_block_count(unsigned **count);
   void _ACC_gpu_get_block_count_async(unsigned **count, int async_num);
   _ACC_queue_t* _ACC_queue_map_get_queue(int async_num);
@@ -152,9 +152,16 @@ extern "C" {
   //acc_mpool_*.c
   _ACC_mpool_t* _ACC_mpool_create();
   void _ACC_mpool_destroy(_ACC_mpool_t *);
+  void _ACC_mpool_alloc_block(void **);
+  void _ACC_mpool_free_block(void *);
+  void _ACC_mpool_alloc(void **ptr, long long size, void *mpool, long long *pos);
+  void _ACC_mpool_free(void *ptr, void *mpool);
 
   void _ACC_gpu_alloc(void **addr, size_t size);
   void _ACC_gpu_free(void *addr);
+
+  void _ACC_copy(void *host_addr, void *device_addr, size_t size, int direction);
+  void _ACC_copy_async(void *host_addr, void *device_addr, size_t size, int direction, int async);
 
 #ifdef __cplusplus
 }

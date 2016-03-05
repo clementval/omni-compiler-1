@@ -59,4 +59,6 @@ typedef struct _ACC_kernel_type _ACC_kernel_t;
 void _ACC_queue_set_last_event(_ACC_queue_t* queue, cl_event event);
 cl_command_queue _ACC_queue_get_command_queue(_ACC_queue_t *queue);
 
+void _ACC_cl_copy(void *host_addr, cl_mem memory_object, size_t mem_offset, size_t size, int direction, int asyncId);
+
 #endif  //end _ACC_INTERNAL_CL_HEADER

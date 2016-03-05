@@ -25,7 +25,7 @@ _ACC_queue_t* _ACC_queue_create(int async_num)
     queue->stream = NULL;
   }
   queue->async_num = async_num;
-  _ACC_gpu_mpool_alloc_block(&queue->mpool);
+  _ACC_mpool_alloc_block(&queue->mpool);
   _ACC_gpu_calloc((void**)&queue->block_count, sizeof(unsigned));
   return queue;
 }
@@ -40,7 +40,7 @@ void _ACC_queue_destroy(_ACC_queue_t* queue)
       _ACC_gpu_fatal(error);
     }
   }
-  _ACC_gpu_mpool_free_block(queue->mpool);
+  _ACC_mpool_free_block(queue->mpool);
   _ACC_gpu_free(queue->block_count);
   _ACC_free(queue);
 }

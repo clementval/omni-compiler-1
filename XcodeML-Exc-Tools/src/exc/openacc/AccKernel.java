@@ -8,8 +8,8 @@ import java.util.*;
 public class AccKernel {
   private static final String ACC_CALC_IDX_FUNC = "_ACC_calc_idx";
   private static final String ACC_INIT_ITER_FUNC_PREFIX = "_ACC_init_iter_";
-  private static final String ACC_MPOOL_ALLOC_FUNCNAME = "_ACC_gpu_mpool_alloc";
-  private static final String ACC_MPOOL_FREE_FUNCNAME = "_ACC_gpu_mpool_free";
+  private static final String ACC_MPOOL_ALLOC_FUNCNAME = "_ACC_mpool_alloc";
+  private static final String ACC_MPOOL_FREE_FUNCNAME = "_ACC_mpool_free";
   private final ACCglobalDecl _decl;
   private final PragmaBlock _pb;
   private final AccInformation _kernelInfo; //parallel or kernels info
@@ -891,7 +891,7 @@ public class AccKernel {
       if (asyncExpr == null) {
         asyncExpr = Xcons.IntConstant(ACC.ACC_ASYNC_SYNC);
       }
-      getMpoolFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_mpool_get_async", Xcons.List(mpool.getAddr(), asyncExpr));
+      getMpoolFuncCall = ACCutil.createFuncCallBlock("_ACC_mpool_get_async", Xcons.List(mpool.getAddr(), asyncExpr));
       blockListBuilder.addIdent(mpool);
       blockListBuilder.addIdent(mpoolPos);
       blockListBuilder.addInitBlock(initMpoolPos);
@@ -910,8 +910,8 @@ public class AccKernel {
 
         Block mpoolAllocFuncCall = ACCutil.createFuncCallBlock(ACC_MPOOL_ALLOC_FUNCNAME, Xcons.List(devPtrId.getAddr(), size, mpool.Ref(), mpoolPos.getAddr()));
         Block mpoolFreeFuncCall = ACCutil.createFuncCallBlock(ACC_MPOOL_FREE_FUNCNAME, Xcons.List(devPtrId.Ref(), mpool.Ref()));
-        Block HtoDCopyFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_copy", Xcons.List(varId.getAddr(), devPtrId.Ref(), size, Xcons.IntConstant(400)));
-        Block DtoHCopyFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_copy", Xcons.List(varId.getAddr(), devPtrId.Ref(), size, Xcons.IntConstant(401)));
+        Block HtoDCopyFuncCall = ACCutil.createFuncCallBlock("_ACC_copy_async", Xcons.List(varId.getAddr(), devPtrId.Ref(), size, Xcons.IntConstant(400), getAsyncExpr()));
+        Block DtoHCopyFuncCall = ACCutil.createFuncCallBlock("_ACC_copy_async", Xcons.List(varId.getAddr(), devPtrId.Ref(), size, Xcons.IntConstant(401), getAsyncExpr()));
         blockListBuilder.addInitBlock(mpoolAllocFuncCall);
         blockListBuilder.addInitBlock(HtoDCopyFuncCall);
         blockListBuilder.addFinalizeBlock(DtoHCopyFuncCall);

@@ -89,15 +89,12 @@ void _ACC_platform_init_device(int device_num /*0-based*/)
   _ACC_DEBUG("CL_DEVICE_NAME=%s\n", buf);
 }
 
-_ACC_mpool_t* _ACC_mpool_create()
-{
-  //FIXME implement
-  return NULL;
+void _ACC_copy(void *host_addr, void *device_addr, size_t size, int direction){
+  _ACC_cl_copy(host_addr, (cl_mem)device_addr, 0, size, direction, ACC_ASYNC_SYNC);
 }
-void _ACC_mpool_destroy(_ACC_mpool_t *mpool)
-{
-  //FIXME implement
-  return;
+
+void _ACC_copy_async(void *host_addr, void *device_addr, size_t size, int direction, int async){
+  _ACC_cl_copy(host_addr, (cl_mem)device_addr, 0, size, direction, async);
 }
 
 void _ACC_gpu_alloc(void** addr, size_t size)
