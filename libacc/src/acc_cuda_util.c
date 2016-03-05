@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include "cuda_runtime.h"
 
+#define _ACC_M_CEILi(a_, b_) (((a_) % (b_)) == 0 ? ((a_) / (b_)) : ((a_) / (b_)) + 1)
+#define _ACC_M_MAX(a_, b_) ((a_) > (b_) ? (a_) : (b_))
+#define _ACC_M_MIN(a_, b_) ((a_) > (b_) ? (b_) : (a_))
+
 void _ACC_gpu_alloc(void **addr, size_t size)
 {
   //printf("_ACC_gpu_alloc\n");
@@ -145,5 +149,22 @@ void _ACC_free_pinned(void *p)
   cudaError_t err = cudaFreeHost(p);
   if(err != cudaSuccess){
     _ACC_gpu_fatal(err);
+  }
+}
+
+void _ACC_gpu_adjust_grid(int *gridX,int *gridY, int *gridZ, int limit){
+  int total = *gridX * *gridY * *gridZ;
+  if(total > limit){
+    *gridZ = _ACC_M_MAX(1, *gridZ/_ACC_M_CEILi(total,limit));
+    total = *gridX * *gridY * *gridZ;
+
+    if(total > limit){
+      *gridY = _ACC_M_MAX(1, *gridY/_ACC_M_CEILi(total,limit));
+      total = *gridX * *gridY;
+      
+      if(total > limit){
+	*gridX = _ACC_M_CEILi(*gridX, _ACC_M_CEILi(total,limit));
+      }
+    }
   }
 }

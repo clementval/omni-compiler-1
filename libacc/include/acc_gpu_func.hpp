@@ -106,34 +106,6 @@ static void _ACC_gpu_calc_thread_params(unsigned long long *total_iter,
   *thread_z = 1;
 }
 
-static void _ACC_GPU_ADJUST_GRID(int *gridX,int *gridY, int *gridZ, int limit){
-  int total = *gridX * *gridY * *gridZ;
-  if(total > limit){
-    *gridZ = _ACC_M_MAX(1, *gridZ/_ACC_M_CEILi(total,limit));
-    total = *gridX * *gridY * *gridZ;
-
-    if(total > limit){
-      *gridY = _ACC_M_MAX(1, *gridY/_ACC_M_CEILi(total,limit));
-      total = *gridX * *gridY;
-      
-      if(total > limit){
-	*gridX = _ACC_M_CEILi(*gridX, _ACC_M_CEILi(total,limit));
-      }
-    }
-  }
-  
-  /*
-  while(total > limit){
-    if(*gridZ > 1){
-    *gridZ /= 2;
-    }else if(*gridY > 1){
-    *gridY /= 2;
-    }else{
-    *gridX /= 2;
-    }
-    total = *gridX * *gridY * *gridZ;
-    }*/
-}
 
 __device__
 static void _ACC_calc_niter(int *niter, int init, int cond, int step){

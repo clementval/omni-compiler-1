@@ -8,6 +8,8 @@ import java.util.*;
 public class AccKernel {
   private static final String ACC_CALC_IDX_FUNC = "_ACC_calc_idx";
   private static final String ACC_INIT_ITER_FUNC_PREFIX = "_ACC_init_iter_";
+  private static final String ACC_MPOOL_ALLOC_FUNCNAME = "_ACC_gpu_mpool_alloc";
+  private static final String ACC_MPOOL_FREE_FUNCNAME = "_ACC_gpu_mpool_free";
   private final ACCglobalDecl _decl;
   private final PragmaBlock _pb;
   private final AccInformation _kernelInfo; //parallel or kernels info
@@ -78,7 +80,7 @@ public class AccKernel {
     String funcName = getFuncInfo(_pb).getArg(0).getString();
     int lineNo = kernelBody.get(0).getLineNo().lineNo();
     String kernelMainName = ACC_FUNC_PREFIX + funcName + "_L" + lineNo;
-    String launchFuncName = null;
+    String launchFuncName;
     if(ACC.platform == ACC.Platform.CUDA){
       launchFuncName = kernelMainName;
     }else{
@@ -91,37 +93,28 @@ public class AccKernel {
     String deviceKernelName = kernelMainName + ACC_GPU_DEVICE_FUNC_SUFFIX;
     XobjectDef deviceKernelDef = makeDeviceKernelDef(deviceKernelName, _outerIdList, kernelBody);
 
-    //make launchFuncDef
-    XobjectDef launchFuncDef = makeLaunchFuncDef(launchFuncName, deviceKernelDef);
-
     //add deviceKernel and launchFunction
     XobjectFile devEnv = _decl.getEnvDevice();
     devEnv.add(deviceKernelDef);
-    if(ACC.platform == ACC.Platform.CUDA) {
-      devEnv.add(launchFuncDef);
-    }
-
-    //make launchFuncCall
-    FunctionType launchFuncType = (FunctionType) launchFuncDef.getFuncType();
-    launchFuncType.setFuncParamIdList(launchFuncDef.getDef().getArg(1));
-    XobjList launchFuncArgs = makeLaunchFuncArgs();
 
 
+
+    return makeLaunchFuncBlock(launchFuncName, deviceKernelDef);
+  }
+
+  private Block makeKernelLaunchBlock(String launchFuncName, String kernelFuncName, XobjList kernelFuncArgs, Ident confId, Xobject asyncExpr)
+  {
     BlockList body = Bcons.emptyBody();
-    Xobject confDecl = gpuManager.getBlockThreadSize();
-    Ident confId = body.declLocalIdent("_ACC_conf", Xtype.Array(Xtype.intType, null), StorageClass.AUTO, confDecl);
-    Ident launchFuncId = null;
 
-    if(ACC.platform == ACC.Platform.CUDA) {
-      launchFuncId = _decl.declExternIdent(launchFuncDef.getName(), launchFuncType);
-
-      launchFuncArgs.add(getAsyncExpr());
-      launchFuncArgs.add(confId.Ref());
-    }else{
       XobjList argDecls = Xcons.List();
       XobjList argSizeDecls = Xcons.List();
-      for(Xobject x : launchFuncArgs){
-        argDecls.add(Xcons.AddrOf(x));
+      for(Xobject x : kernelFuncArgs){
+        if(x.Opcode() != Xcode.CAST_EXPR) {
+          //FIXME use AddrOFVar
+          argDecls.add(Xcons.AddrOf(x));
+        }else{
+          argDecls.add(Xcons.AddrOfVar(x.getArg(0)));
+        }
         if(x.Type().isPointer()) {
           argSizeDecls.add(Xcons.SizeOf(Xtype.voidPtrType));
         }else {
@@ -131,53 +124,67 @@ public class AccKernel {
       Ident argSizesId = body.declLocalIdent("_ACC_argsizes", Xtype.Array(Xtype.unsignedlonglongType, null), StorageClass.AUTO, argSizeDecls);
       Ident argsId = body.declLocalIdent("_ACC_args", Xtype.Array(Xtype.voidPtrType, null), StorageClass.AUTO, argDecls);
 
-      launchFuncId = ACCutil.getMacroFuncId(launchFuncName, Xtype.voidType);
-      int kernelNum = _decl.declKernel(deviceKernelName);
+      Ident launchFuncId = ACCutil.getMacroFuncId(launchFuncName, Xtype.voidType);
+      int kernelNum = _decl.declKernel(kernelFuncName);
       Ident programId = _decl.getProgramId();
-      int numArgs = launchFuncArgs.Nargs();
+      int numArgs = kernelFuncArgs.Nargs();
 
-      launchFuncArgs = Xcons.List(
+      Xobject launchFuncArgs = Xcons.List(
               programId.Ref(),
               Xcons.IntConstant(kernelNum),
               confId.Ref(),
-              getAsyncExpr(),
+              asyncExpr,
               Xcons.IntConstant(numArgs),
               argSizesId.Ref(),
               argsId.Ref());
-    }
-
     body.add(launchFuncId.Call(launchFuncArgs));
-
     return Bcons.COMPOUND(body);
   }
 
-  private XobjList makeLaunchFuncArgs() {
-    XobjList launchFuncArgs = Xcons.List();
-    for (ACCvar var : _outerVarList) {
-      launchFuncArgs.add(makeLaunchFuncArg(var));
-    }
 
-    return launchFuncArgs;
+  private Block makeKernelLaunchBlockCUDA(Ident deviceKernelId, XobjList kernelArgs, XobjList conf, Xobject asyncExpr)
+  {
+    Xobject deviceKernelCall = deviceKernelId.Call(kernelArgs);
+    //FIXME merge GPU_FUNC_CONF and GPU_FUNC_CONF_ASYNC
+    deviceKernelCall.setProp(ACCgpuDecompiler.GPU_FUNC_CONF, conf);
+    deviceKernelCall.setProp(ACCgpuDecompiler.GPU_FUNC_CONF_ASYNC, Xcons.List(asyncExpr));
+    if (sharedMemory.isUsed()) {
+      Xobject maxSmSize = sharedMemory.getMaxSize();
+      deviceKernelCall.setProp(ACCgpuDecompiler.GPU_FUNC_CONF_SHAREDMEMORY, maxSmSize);
+    }
+    return Bcons.Statement(deviceKernelCall);
   }
 
   private Xobject makeLaunchFuncArg(ACCvar var){
     if (var.isArray()) {
-      Ident devicePtr = var.getDevicePtr(); ////kernelInfo.getDevicePtr(id.getName());
-      return devicePtr.Ref();
-    } else {
+      Ident devicePtrId = var.getDevicePtr();
+      Xobject devicePtr = devicePtrId.Ref();
+
+      Xtype type = var.getId().Type();
+      if(! type.equals(devicePtrId.Type())){
+        return Xcons.Cast(type, devicePtr);
+      }
+      return devicePtr;
+    } else{
       Ident id = var.getId();
 
       if (_useMemPoolOuterIdSet.contains(id)) {
         return id.getAddr(); //host scalar pointer
       }
 
-      Ident devicePtrId = var.getDevicePtr();
       if(!var.isArray() && var.isFirstprivate()){
         return id.Ref(); //host scalar data
       }
 
-      return devicePtrId.Ref(); //device pointer
+      Ident devicePtrId = var.getDevicePtr();
+      Xobject devicePtr = devicePtrId.Ref();
+      Xtype elmtType = var.getElementType();
+      if(! elmtType.equals(devicePtrId.Type())){
+        return Xcons.Cast(Xtype.Pointer(elmtType), devicePtr);
+      }
+      return devicePtr;
     }
+
   }
 
   private Xobject getAsyncExpr(){
@@ -864,42 +871,27 @@ public class AccKernel {
   }
 
 
-  private XobjectDef makeLaunchFuncDef(String launchFuncName, XobjectDef deviceKernelDef) {
-    XobjList launchFuncParamIds = Xcons.IDList();
+  private Block makeLaunchFuncBlock(String launchFuncName, XobjectDef deviceKernelDef) {
     XobjList deviceKernelCallArgs = Xcons.List();
     BlockListBuilder blockListBuilder = new BlockListBuilder();
-
-    Ident kernelConf = Ident.Param("_ACC_conf", Xtype.Pointer(Xtype.intType));
-    Xobject numGangs = Xcons.arrayRef(Xtype.intType, kernelConf.getAddr(), Xcons.List(Xcons.IntConstant(0)));
-    Xobject numWorkers = Xcons.arrayRef(Xtype.intType, kernelConf.getAddr(), Xcons.List(Xcons.IntConstant(1)));
-    Xobject vectorLength = Xcons.arrayRef(Xtype.intType, kernelConf.getAddr(), Xcons.List(Xcons.IntConstant(2)));
+    XobjList confDecl = gpuManager.getBlockThreadSize();
 
     //# of block and thread
-    Ident blockXid = blockListBuilder.declLocalIdent("_ACC_GPU_DIM3_block_x", Xtype.intType, numGangs);
-    Ident blockYid = blockListBuilder.declLocalIdent("_ACC_GPU_DIM3_block_y", Xtype.intType, Xcons.IntConstant(1));
-    Ident blockZid = blockListBuilder.declLocalIdent("_ACC_GPU_DIM3_block_z", Xtype.intType, Xcons.IntConstant(1));
-    Ident threadXid = blockListBuilder.declLocalIdent("_ACC_GPU_DIM3_thread_x", Xtype.intType, vectorLength);
-    Ident threadYid = blockListBuilder.declLocalIdent("_ACC_GPU_DIM3_thread_y", Xtype.intType, numWorkers);
-    Ident threadZid = blockListBuilder.declLocalIdent("_ACC_GPU_DIM3_thread_z", Xtype.intType, Xcons.IntConstant(1));
+    Ident num_gangs = blockListBuilder.declLocalIdent("_ACC_num_gangs", Xtype.intType, confDecl.getArg(0));
+    Ident num_workers = blockListBuilder.declLocalIdent("_ACC_num_workers", Xtype.intType, confDecl.getArg(1));
+    Ident vec_len = blockListBuilder.declLocalIdent("_ACC_vec_len", Xtype.intType, confDecl.getArg(2));
 
-
-    Xobject max_num_grid = Xcons.IntConstant(65535);
-    Block adjustGridFuncCall = ACCutil.createFuncCallBlock("_ACC_GPU_ADJUST_GRID", Xcons.List(Xcons.AddrOf(blockXid.Ref()), Xcons.AddrOf(blockYid.Ref()), Xcons.AddrOf(blockZid.Ref()), max_num_grid));
-    blockListBuilder.addInitBlock(adjustGridFuncCall);
-
-
-    Ident mpool = Ident.Local("_ACC_GPU_mpool", Xtype.voidPtrType);
-    Ident mpoolPos = Ident.Local("_ACC_GPU_mpool_pos", Xtype.longlongType);
+    Ident mpool = Ident.Local("_ACC_mpool", Xtype.voidPtrType);
+    Ident mpoolPos = Ident.Local("_ACC_mpool_pos", Xtype.longlongType);
 
     if (!allocList.isEmpty() || !_useMemPoolOuterIdSet.isEmpty()) {
       Block initMpoolPos = Bcons.Statement(Xcons.Set(mpoolPos.Ref(), Xcons.LongLongConstant(0, 0)));
       Block getMpoolFuncCall;
       Xobject asyncExpr = _kernelInfo.getIntExpr(ACCpragma.ASYNC);
-      if (asyncExpr != null) {
-        getMpoolFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_mpool_get_async", Xcons.List(mpool.getAddr(), asyncExpr));
-      } else {
-        getMpoolFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_mpool_get", Xcons.List(mpool.getAddr()));
+      if (asyncExpr == null) {
+        asyncExpr = Xcons.IntConstant(ACC.ACC_ASYNC_SYNC);
       }
+      getMpoolFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_mpool_get_async", Xcons.List(mpool.getAddr(), asyncExpr));
       blockListBuilder.addIdent(mpool);
       blockListBuilder.addIdent(mpoolPos);
       blockListBuilder.addInitBlock(initMpoolPos);
@@ -908,43 +900,25 @@ public class AccKernel {
 
     XobjList reductionKernelCallArgs = Xcons.List();
     int reductionKernelVarCount = 0;
-    //for (Ident varId : _outerIdList) {
+
     for (ACCvar var : _outerVarList) {
       Ident varId = var.getId();
       Xobject paramRef;
       if (_useMemPoolOuterIdSet.contains(varId)) {
-        Ident paramId = Ident.Param(varId.getName(), Xtype.Pointer(varId.Type()));
-        launchFuncParamIds.add(paramId);
-
-        Ident devPtrId = blockListBuilder.declLocalIdent("_ACC_gpu_dev_" + varId.getName(), Xtype.voidPtrType);
-
-        //ACCvar var = kernelInfo.getACCvar(varId);
+        Ident devPtrId = blockListBuilder.declLocalIdent("_ACC_dev_" + varId.getName(), Xtype.voidPtrType);
         Xobject size = var.getSize();
 
-        Block mpoolAllocFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_mpool_alloc", Xcons.List(devPtrId.getAddr(), size, mpool.Ref(), mpoolPos.getAddr()));
-        Block mpoolFreeFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_mpool_free", Xcons.List(devPtrId.Ref(), mpool.Ref()));
-        Block HtoDCopyFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_copy", Xcons.List(paramId.Ref(), devPtrId.Ref(), size, Xcons.IntConstant(400)));
-        Block DtoHCopyFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_copy", Xcons.List(paramId.Ref(), devPtrId.Ref(), size, Xcons.IntConstant(401)));
+        Block mpoolAllocFuncCall = ACCutil.createFuncCallBlock(ACC_MPOOL_ALLOC_FUNCNAME, Xcons.List(devPtrId.getAddr(), size, mpool.Ref(), mpoolPos.getAddr()));
+        Block mpoolFreeFuncCall = ACCutil.createFuncCallBlock(ACC_MPOOL_FREE_FUNCNAME, Xcons.List(devPtrId.Ref(), mpool.Ref()));
+        Block HtoDCopyFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_copy", Xcons.List(varId.getAddr(), devPtrId.Ref(), size, Xcons.IntConstant(400)));
+        Block DtoHCopyFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_copy", Xcons.List(varId.getAddr(), devPtrId.Ref(), size, Xcons.IntConstant(401)));
         blockListBuilder.addInitBlock(mpoolAllocFuncCall);
         blockListBuilder.addInitBlock(HtoDCopyFuncCall);
         blockListBuilder.addFinalizeBlock(DtoHCopyFuncCall);
         blockListBuilder.addFinalizeBlock(mpoolFreeFuncCall);
         paramRef = Xcons.Cast(Xtype.Pointer(varId.Type()), devPtrId.Ref());
       } else {
-        Ident paramId = makeParamId_new(varId);
-        switch (varId.Type().getKind()) {
-        case Xtype.ARRAY:
-        case Xtype.POINTER:
-          launchFuncParamIds.add(paramId);
-          //Ident paramDevId = Ident.Param("_ACC_gpu_dev_" + paramId.getName(), paramId.Type());
-          //launchFuncParamIds.add(paramDevId);
-          //paramRef = paramDevId.Ref();
-          paramRef = paramId.Ref();
-          break;
-        default:
-          launchFuncParamIds.add(paramId);
-          paramRef = paramId.Ref();
-        }
+        paramRef = makeLaunchFuncArg(var);
       }
 
       deviceKernelCallArgs.add(paramRef);
@@ -969,9 +943,9 @@ public class AccKernel {
       }
 
       Xobject size = Xcons.binaryOp(Xcode.PLUS_EXPR, baseSize,
-              Xcons.binaryOp(Xcode.MUL_EXPR, numBlocksFactor, blockXid.Ref()));
-      Block mpoolAllocFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_mpool_alloc", Xcons.List(devPtrId.getAddr(), size, mpool.Ref(), mpoolPos.getAddr()));
-      Block mpoolFreeFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_mpool_free", Xcons.List(devPtrId.Ref(), mpool.Ref()));
+              Xcons.binaryOp(Xcode.MUL_EXPR, numBlocksFactor, num_gangs.Ref()));
+      Block mpoolAllocFuncCall = ACCutil.createFuncCallBlock(ACC_MPOOL_ALLOC_FUNCNAME, Xcons.List(devPtrId.getAddr(), size, mpool.Ref(), mpoolPos.getAddr()));
+      Block mpoolFreeFuncCall = ACCutil.createFuncCallBlock(ACC_MPOOL_FREE_FUNCNAME, Xcons.List(devPtrId.Ref(), mpool.Ref()));
       blockListBuilder.addInitBlock(mpoolAllocFuncCall);
       blockListBuilder.addFinalizeBlock(mpoolFreeFuncCall);
     }
@@ -990,59 +964,132 @@ public class AccKernel {
       blockListBuilder.addInitBlock(getBlockCounterFuncCall);
     }
 
-    Ident deviceKernelId = (Ident) deviceKernelDef.getNameObj();
-    Xobject deviceKernelCall = deviceKernelId.Call(deviceKernelCallArgs);
-    //FIXME merge GPU_FUNC_CONF and GPU_FUNC_CONF_ASYNC
-    deviceKernelCall.setProp(ACCgpuDecompiler.GPU_FUNC_CONF, Xcons.List(blockXid, blockYid, blockZid, threadXid, threadYid, threadZid));
-
-    Ident asyncId = Ident.Param("_ACC_async_num", Xtype.intType);
-    launchFuncParamIds.add(asyncId);
-    deviceKernelCall.setProp(ACCgpuDecompiler.GPU_FUNC_CONF_ASYNC, Xcons.List(asyncId.Ref()));
-
-    launchFuncParamIds.add(kernelConf);
-
-    if (sharedMemory.isUsed()) {
-      Xobject maxSmSize = sharedMemory.getMaxSize();
-      deviceKernelCall.setProp(ACCgpuDecompiler.GPU_FUNC_CONF_SHAREDMEMORY, maxSmSize);
+    Block kernelLauchBlock = Bcons.emptyBlock();
+    switch (ACC.platform) {
+    case CUDA:
+      kernelLauchBlock = makeLauncherFuncCallCUDA(launchFuncName, deviceKernelDef, deviceKernelCallArgs, num_gangs.Ref(), num_workers.Ref(), vec_len.Ref(), getAsyncExpr());
+      break;
+    case OpenCL:
+      String kernelName = deviceKernelDef.getName();
+      Ident kernelConf =blockListBuilder.declLocalIdent("_ACC_conf", Xtype.Array(Xtype.intType, null), Xcons.List(num_gangs.Ref(), num_workers.Ref(), vec_len.Ref()));
+      kernelLauchBlock = makeKernelLaunchBlock(ACC_CL_KERNEL_LAUNCHER_NAME, kernelName, deviceKernelCallArgs, kernelConf, getAsyncExpr());
+      break;
+    default:
+      ACC.fatal("not supported platform");
     }
-
-    blockListBuilder.add(Bcons.Statement(deviceKernelCall));
+    blockListBuilder.add(kernelLauchBlock);
 
     if (reductionManager.hasUsingTmpReduction()) {
       XobjectDef reductionKernelDef = reductionManager.makeReductionKernelDef(launchFuncName + "_red" + ACC_GPU_DEVICE_FUNC_SUFFIX);
-      Ident reductionKernelId = (Ident) reductionKernelDef.getNameObj();
-      reductionKernelCallArgs.add(blockXid.Ref());
-      Xobject reductionKernelCall = reductionKernelId.Call(reductionKernelCallArgs);
 
-      Xobject constant1 = Xcons.IntConstant(1);
-      reductionKernelCall.setProp(ACCgpuDecompiler.GPU_FUNC_CONF, Xcons.List(Xcons.IntConstant(reductionKernelVarCount), constant1, constant1, Xcons.IntConstant(ACC.defaultVectorLength), constant1, constant1));
-      Object asyncObj;
-      if (_kernelInfo.hasClause(ACCpragma.ASYNC)) {
-        Xobject asyncExp = _kernelInfo.getIntExpr(ACCpragma.ASYNC);
-        if (asyncExp != null) {
-          asyncObj = Xcons.List(asyncExp);
-        } else {
-          asyncObj = Xcons.List(Xcons.IntConstant(ACC.ACC_ASYNC_NOVAL));
-        }
-      } else {
-        asyncObj = Xcons.List(Xcons.IntConstant(ACC.ACC_ASYNC_SYNC));
-      }
-      reductionKernelCall.setProp(ACCgpuDecompiler.GPU_FUNC_CONF_ASYNC, asyncObj);
       XobjectFile devEnv = _decl.getEnvDevice();
       devEnv.add(reductionKernelDef);
-      Block ifBlock = Bcons.IF(Xcons.binaryOp(Xcode.LOG_GT_EXPR, blockXid.Ref(), Xcons.IntConstant(1)), Bcons.Statement(reductionKernelCall), null);
+      reductionKernelCallArgs.add(num_gangs.Ref());
+
+      Block reductionKernelCallBlock = Bcons.emptyBlock();
+
+      switch (ACC.platform) {
+      case CUDA:
+        reductionKernelCallBlock = makeLauncherFuncCallCUDA(launchFuncName + "_red", reductionKernelDef, reductionKernelCallArgs,
+                Xcons.IntConstant(reductionKernelVarCount),
+                Xcons.IntConstant(1),
+                Xcons.IntConstant(ACC.defaultVectorLength),
+                getAsyncExpr());
+        break;
+      case OpenCL:
+        BlockList body = Bcons.emptyBody();
+        String kernelName = reductionKernelDef.getName();
+        Ident kernelConf = body.declLocalIdent("_ACC_conf", Xtype.Array(Xtype.intType, null), StorageClass.AUTO, Xcons.List(num_gangs.Ref(), num_workers.Ref(), vec_len.Ref()));
+        body.add(makeKernelLaunchBlock(ACC_CL_KERNEL_LAUNCHER_NAME, kernelName, reductionKernelCallArgs, kernelConf, getAsyncExpr()));
+        reductionKernelCallBlock = Bcons.COMPOUND(body);
+        break;
+      default:
+        ACC.fatal("not supported platform");
+      }
+
+      Block ifBlock = Bcons.IF(Xcons.binaryOp(Xcode.LOG_GT_EXPR, num_gangs.Ref(), Xcons.IntConstant(1)), reductionKernelCallBlock, null);
       blockListBuilder.add(ifBlock);
     }
 
     if (!_kernelInfo.hasClause(ACCpragma.ASYNC)) {
-      blockListBuilder.add(ACCutil.createFuncCallBlock("_ACC_gpu_wait", Xcons.List(_accAsyncSync)));
+      blockListBuilder.add(ACCutil.createFuncCallBlock("_ACC_gpu_wait", Xcons.List(Xcons.IntConstant(ACC.ACC_ASYNC_SYNC) /*_accAsyncSync*/)));
     }
 
     BlockList launchFuncBody = blockListBuilder.build();
 
-    Ident launchFuncId = _decl.getEnvDevice().declGlobalIdent(launchFuncName, Xtype.Function(Xtype.voidType));
+    return Bcons.COMPOUND(launchFuncBody);
+  }
 
-    return XobjectDef.Func(launchFuncId, launchFuncParamIds, null, launchFuncBody.toXobject());
+  private Block makeLauncherFuncCallCUDA(String launchFuncName, XobjectDef deviceKernelDef, XobjList deviceKernelCallArgs, Xobject num_gangs, Xobject num_workers, Xobject vec_len, Xobject asyncExpr) {
+    Xobject const1 = Xcons.IntConstant(1);
+    BlockList body = Bcons.emptyBody();
+    XobjList conf = Xcons.List(num_gangs, const1, const1, vec_len, num_workers, const1);
+    Ident confId = body.declLocalIdent("_ACC_conf", Xtype.Array(Xtype.intType, 6), StorageClass.AUTO, conf);
+    XobjectDef launcherFuncDef = makeLauncherFuncDefCUDA(launchFuncName, deviceKernelDef, deviceKernelCallArgs);
+    XobjectFile devEnv = _decl.getEnvDevice();
+    devEnv.add(launcherFuncDef);
+    Ident launcherFuncId = _decl.declExternIdent(launcherFuncDef.getName(), Xtype.Function(Xtype.voidType));
+    XobjList callArgs = Xcons.List();
+    for(Xobject arg : deviceKernelCallArgs){
+      if(arg.Opcode() == Xcode.CAST_EXPR && arg.Type().isArray()){
+        arg = Xcons.Cast(Xtype.Pointer(arg.Type().getRef()), arg.getArg(0));
+      }
+      callArgs.add(arg);
+    }
+    callArgs.add(confId.Ref());
+    callArgs.add(asyncExpr);
+
+    Xobject max_num_grid = Xcons.IntConstant(65535);
+    Block adjustGridFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_adjust_grid", Xcons.List(
+            Xcons.AddrOf(Xcons.arrayRef(Xtype.intType, confId.getAddr(), Xcons.List(Xcons.IntConstant(0)))),
+            Xcons.AddrOf(Xcons.arrayRef(Xtype.intType, confId.getAddr(), Xcons.List(Xcons.IntConstant(1)))),
+            Xcons.AddrOf(Xcons.arrayRef(Xtype.intType, confId.getAddr(), Xcons.List(Xcons.IntConstant(2)))),
+            max_num_grid));
+    body.add(adjustGridFuncCall);
+    body.add(Bcons.Statement(launcherFuncId.Call(callArgs)));
+
+    return Bcons.COMPOUND(body);
+  }
+
+
+  private XobjectDef makeLauncherFuncDefCUDA(String launchFuncName, XobjectDef deviceKernelDef, XobjList deviceKernelCallArgs) {
+    XobjList launcherFuncParamIds = Xcons.IDList();
+    BlockList launcherFuncBody = Bcons.emptyBody();
+    XobjList args = Xcons.List();
+    for(Xobject arg : deviceKernelCallArgs){
+      Xtype type = arg.Type();
+      if(arg.Opcode() == Xcode.CAST_EXPR){
+        arg = arg.getArg(0);
+      }
+      String varName = arg.getName();
+      Ident id = Ident.Param(varName, type);
+      launcherFuncParamIds.add(id);
+
+      args.add(arg);
+    }
+
+    //confs
+    int numConfs = 6;
+    Ident confParamId = Ident.Param("_ACC_conf", Xtype.Array(Xtype.intType, numConfs));
+    launcherFuncParamIds.add(confParamId);
+    XobjList confList = Xcons.List();
+    for(int i = 0; i < numConfs; i++) {
+      confList.add(Xcons.arrayRef(Xtype.intType, confParamId.getAddr(), Xcons.List(Xcons.IntConstant(i))));
+    }
+
+    //asyncnum
+    Ident asyncId = Ident.Param("_ACC_async_num", Xtype.intType);
+    launcherFuncParamIds.add(asyncId);
+    Xobject asyncExpr = asyncId.Ref();
+
+    Ident deviceKernelId = (Ident) deviceKernelDef.getNameObj();
+    Block callBlock = makeKernelLaunchBlockCUDA(deviceKernelId, args, confList, asyncExpr);
+    launcherFuncBody.add(callBlock);
+
+    Ident launcherFuncId = _decl.getEnvDevice().declGlobalIdent(launchFuncName, Xtype.Function(Xtype.voidType));
+    ((FunctionType) launcherFuncId.Type()).setFuncParamIdList(launcherFuncParamIds);
+
+    return XobjectDef.Func(launcherFuncId, launcherFuncParamIds, null, launcherFuncBody.toXobject());
   }
 
   private Ident makeParamId_new(Ident id) {

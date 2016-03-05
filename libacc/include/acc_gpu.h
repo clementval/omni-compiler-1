@@ -37,6 +37,7 @@ extern "C" {
 
 
   void _ACC_gpu_mpool_get(void **ptr);
+  void _ACC_gpu_mpool_get_async(void **ptr, int async_num);
   void _ACC_gpu_mpool_alloc(void **ptr, long long size, void *mpool, long long *pos);
   void _ACC_gpu_mpool_free(void *ptr, void *mpool);
   void _ACC_gpu_copy(void *host_addr, void *device_addr, size_t size, int direction);
@@ -50,6 +51,7 @@ extern "C" {
   void _ACC_launch(void *program, int kernel_num, int *_ACC_conf, int async_num, int num_args, unsigned long long/*instead of size_t*/ *arg_sizes, void **args);
   void _ACC_program_finalize(void *program);
 
+  void _ACC_gpu_adjust_grid(int *gridX,int *gridY, int *gridZ, int limit);
 #ifdef __cplusplus
 }
 #endif
