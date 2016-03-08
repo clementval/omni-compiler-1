@@ -20,6 +20,7 @@ struct _ACC_program_type {
 };
 
 #define _ACC_M_CEILi(a_, b_) (((a_) % (b_)) == 0 ? ((a_) / (b_)) : ((a_) / (b_)) + 1)
+#define _ACC_M_ROUNDUP(a_, n_) ((_ACC_M_CEILi((a_), (n_))) * (n_))
 
 static int adjust_num_gangs(int num_gangs, int limit){
   if(num_gangs > limit){
@@ -44,7 +45,7 @@ void _ACC_launch(_ACC_program_t *program, int kernel_num, int *_ACC_conf, int as
     _ACC_fatal("vector_length must be 8");
   }
   int adjusted_num_gangs = adjust_num_gangs(num_gangs, 1024);
-  size_t global_work_size = PZSDK_RoundUpMultipleOfN(adjusted_num_gangs * vector_length, 128);
+  size_t global_work_size = _ACC_M_ROUNDUP(adjusted_num_gangs * vector_length, 128);
   size_t local_work_size = 1;
   _ACC_DEBUG("original num_gangs=%d, adjusted_num_gangs=%d\n", num_gangs, adjusted_num_gangs);
 #else

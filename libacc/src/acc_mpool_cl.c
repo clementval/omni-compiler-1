@@ -73,7 +73,7 @@ void _ACC_mpool_alloc(void **ptr, long long size, void *mpool, long long *pos){
   cl_int ret;
   if(*pos + aligned_size <= _ACC_CL_MPOOL_BLOCK_SIZE){
     cl_buffer_region info = {(size_t)(*pos), (size_t)size};
-    *ptr = clCreateSubBuffer((cl_mem)*ptr, CL_MEM_READ_WRITE, CL_BUFFER_CREATE_TYPE_REGION, &info, &ret); //((char*)mpool) + *pos;
+    *ptr = clCreateSubBuffer((cl_mem)mpool, CL_MEM_READ_WRITE, CL_BUFFER_CREATE_TYPE_REGION, &info, &ret); //((char*)mpool) + *pos;
     CL_CHECK(ret);
     *pos += aligned_size;
   }else{

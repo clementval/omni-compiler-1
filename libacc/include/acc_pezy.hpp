@@ -2,6 +2,7 @@
 #define _ACC_PEZY_HEADER
 
 #include "pzc_builtin.h"
+#include "acc_pezy_reduction.hpp"
 
 //Macro
 #define _ACC_M_FLOORi(a_, b_) ((a_) / (b_))

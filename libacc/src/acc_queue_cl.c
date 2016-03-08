@@ -20,7 +20,7 @@ _ACC_queue_t* _ACC_queue_create(int async_num)
 
   queue->last_event = NULL;
 
-  queue->mpool = NULL; //FIXME do something such as _ACC_gpu_mpool_alloc_block(&queue->mpool);
+  _ACC_mpool_alloc_block(&queue->mpool);
   queue->block_count = NULL; //FIXME do something such as _ACC_gpu_calloc((void**)&queue->block_count, sizeof(unsigned));
   return queue;
 }
