@@ -1,15 +1,10 @@
 #ifndef _ACC_PEZY_REDUCTION
 #define  _ACC_PEZY_REDUCTION
 
-#include "/home/tabuchi/test/reduction/pzc/red_org.cpp"
+#include "pzc_builtin.h"
+#include "acc_pezy_util.hpp"
 
-// these values are copied from /opt/pzsdk.ver2.1/inc/pzcl/cl_platform.h
-#define INT_MAX          2147483647
-#define INT_MIN          (-2147483647-1)
-#define FLT_MAX          0x1.fffffep127f
-#define FLT_MIN          0x1.0p-126f
-#define DBL_MAX          0x1.fffffffffffffp1023
-#define DBL_MIN          0x1.0p-1022
+//#define DO_PREFETCH
 
 typedef enum {
   PLUS   = 0,
@@ -94,101 +89,292 @@ void _ACC_reduction_init(double* var, _ACC_reduction_kind kind)
 }
 
 
-template<typename T>
-static inline
-void _ACC_pezy_reduction_thread(T* r, T v, _ACC_reduction_kind kind)
-{
-  // ÂÖ®„Çπ„É¨„ÉÉ„Éâ„ÅßÂÆüË°å„Åô„Çã
-  const T tmp = ReductionPe(v);
+#define PZSIZE_T		long long
+#define PZ_INNER_BLK		1
 
-#if 0
-  // „Å™„Åú„Åã„Åì„Å°„Çâ„Å†„Å®„Ç®„É©„Éº„ÅåÂá∫„Çã
-  if(get_tid() == 0){
-    *r = _ACC_reduction_op(*r, tmp, kind);
-  }
-#else
-  *r = _ACC_reduction_op(*r, tmp, kind);
+
+#define MAX_PERF_NUM 16
+#define MAX_CITY_NUM 16
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+/*
+ * Pe ì‡ÇÃâ¡éZ
+ */
+static //inline
+float __ReductionPe( float v )
+{
+	
+	const int stackSize = 2048;
+	const int blk = stackSize / sizeof(float);
+
+	volatile float tmp[ 1 ];
+	
+	const int tid = get_tid();
+	const int max = get_maxtid();
+
+	
+	float sum;
+	f_sw( &tmp[ 0 ], 0, v );
+
+	wait_pe();
+
+	if ( 0 == tid )
+	{
+		float v1,v2,v3,v4,v5,v6, v7;
+
+
+		f_ld    ( &tmp[  0*blk ], 0x00, sum );
+		f_ld    ( &tmp[ -1*blk ], 0x00, v1  );
+//		chgthread();
+		f_ld_add( &tmp[ -2*blk ], 0x00, v2, sum, v, v1  );
+		f_ld_add( &tmp[ -3*blk ], 0x00, v3, sum, sum, v2  );
+		f_ld_add( &tmp[ -4*blk ], 0x00, v4, sum, sum, v3  );
+		f_ld_add( &tmp[ -5*blk ], 0x00, v5, sum, sum, v4  );
+		f_ld_add( &tmp[ -6*blk ], 0x00, v6, sum, sum, v5  );
+		f_ld_add( &tmp[ -7*blk ], 0x00, v7, sum, sum, v6  );
+		sum += v7;
+	}
+	
+	wait_pe();
+
+	return sum;
+}
+
+/*
+ * Pe ì‡ÇÃâ¡éZ
+ */
+static //inline
+double __ReductionPe( double v )
+{
+	
+	const int stackSize = 2048;
+	const int blk = stackSize / sizeof(double);
+	
+	volatile double tmp[1];
+	const int tid = get_tid();
+	const int max = get_maxtid();
+
+	
+	double sum;
+	d_sd( &tmp[ 0 ], 0, v );
+	wait_pe();
+
+	if ( 0 == tid )
+	{
+		double v0,v1,v2,v3,v4,v5,v6,v7;
+		double sum0, sum1;
+
+		d_ld    ( &tmp[      0 ], 0x00, v0 );
+		d_ld    ( &tmp[ -1*blk ], 0x00, v1  );
+		d_ld    ( &tmp[ -2*blk ], 0x00, v2  );
+//		chgthread();
+		d_ld_add( &tmp[ -3*blk ], 0x00, v3, sum0, v0  , v1  );
+		d_ld_add( &tmp[ -4*blk ], 0x00, v4, sum1, v2  , v3  );
+		d_ld_add( &tmp[ -5*blk ], 0x00, v5, sum0, sum0, v4  );
+		d_ld_add( &tmp[ -6*blk ], 0x00, v6, sum1, sum1, v5  );
+		d_ld_add( &tmp[ -7*blk ], 0x00, v7, sum0, sum0, v6  );
+
+		sum1 = sum1 + v7;
+		sum  = sum0 + sum1;
+	}
+
+	
+	wait_pe();
+
+	return sum;
+}
+
+template< typename T >
+static inline
+T __ReductionCityForPeSingle( T v )
+{
+	const int tid    = get_tid();
+	const int maxtid = get_maxtid();
+	int pid = get_pid(); //  % MAX_CITY_NUM;
+	int pidCity = pid / MAX_CITY_NUM * MAX_CITY_NUM;
+	
+	static T tmp[ 1024 ];
+	
+	// Ç‹Ç∏ÉXÉåÉbÉhì‡Ç≈Ç‹Ç∆ÇﬂÇÈÅB
+	v = __ReductionPe( v );
+	
+	// 1 å¬èëÇ≠
+	if ( 0 == tid )
+	{
+		tmp[ pid ] = v;
+	}
+	
+	flush_L1();
+	
+	wait_city();
+	
+	int offset = pidCity;
+	
+	
+	T sum = 0;
+	if ( pid == pidCity )
+	{
+#ifdef DO_PREFETCH
+	do_prefetch_L1( &tmp[ offset + tid          ], 0 );
 #endif
+		sum += tmp[ offset + tid          ];
+		sum += tmp[ offset + tid + maxtid ];
+
+		// Ç‡Ç§àÍâÒÇ‹Ç∆ÇﬂÇÈ
+		sum = __ReductionPe( sum );
+	}
+
+	wait_city();
+	
+	return sum;
 }
+
+
+template< typename T >
+static inline
+T __ReductionPrefectureForPeSingle( T v )
+{
+	int tid     = get_tid();
+	int maxtid  = get_maxtid();
+	int pid     = get_pid(); //  % MAX_CITY_NUM;
+	int cid     = pid / MAX_CITY_NUM;
+	    pid     = pid % MAX_CITY_NUM;
+	
+	static T tmp[ 64 ];
+	
+	// Ç‹Ç∏Cityì‡Ç≈Ç‹Ç∆ÇﬂÇÈÅB
+	v = __ReductionCityForPeSingle( v );
+	
+	// 1 å¬èëÇ≠
+	if ( 0 == pid && tid == 0 )
+	{
+		tmp[ cid ] = v;
+	}
+	
+	flush_L2();
+	
+	int offset = cid / 16 * 16;
+
+	wait_prefecture();
+#ifdef DO_PREFETCH
+	do_prefetch_L1( &tmp[ offset          ], 0 );
+#endif
+	
+	T sum = 0;
+
+	if ( offset * MAX_CITY_NUM == get_pid() )
+	{
+		sum = tmp[ tid + offset          ];
+		sum += tmp[ tid + offset + maxtid ];
+		// Ç‡Ç§àÍâÒÇ‹Ç∆ÇﬂÇÈ
+		sum = __ReductionPe( sum );
+	}
+	
+	wait_prefecture();
+
+	return sum;
+}
+
 
 template<typename T>
-static inline
-void _ACC_pezy_reduction_pe(T* r, T v, _ACC_reduction_kind kind)
+T __ReductionStateForPeSingle( T v )
 {
-  //ÂÖ®PE„ÅßÂÆüË°å„Åô„Çã
-  const int tid    = get_tid();
-  const int maxtid = get_maxtid();
-  int pid = get_pid(); //  % MAX_CITY_NUM;
-  int pidCity = pid / MAX_CITY_NUM * MAX_CITY_NUM;
+	int tid     = get_tid();
+	int maxtid  = get_maxtid();
+	int pid     = get_pid();
 	
-  static T tmp[ 1024 ];
+	static T tmp[ 8 ];
 	
-  // 1 ÂÄãÊõ∏„Åè
-  if ( 0 == tid )
-    {
-      tmp[ pid ] = v;
-    }
+	// Ç‹Ç∏Prefectureì‡Ç≈Ç‹Ç∆ÇﬂÇÈÅB
+	v = __ReductionPrefectureForPeSingle( v );
 	
-  flush_L1();
+	// 1 å¬èëÇ≠
+	#define PE_NUM  256
+	#define PREF_NUM 4
 	
-  wait_city();
-	
-  int offset = pidCity;
-  do_prefetch_L1( &tmp[ offset + tid          ], 0 );
-	
-	
-  T sum = 0;
-  if ( pid == pidCity )
-    {
-      sum = _ACC_reduction_op(sum, tmp[ offset + tid          ], kind);
-      sum = _ACC_reduction_op(sum, tmp[ offset + tid + maxtid ], kind);
+	T sum = 0;
 
-      // „ÇÇ„ÅÜ‰∏ÄÂõû„Åæ„Å®„ÇÅ„Çã
-      sum = ReductionPe( sum );
-    }
+	sync();
 
-  wait_city();
+	int prefid = pid / PE_NUM;
+	if ( (0 == tid) && (0 == ( pid & (PE_NUM-1) ) ))
+	{
+		tmp[ prefid ] = v;
+	}
 	
-  if( pid == pidCity && tid == 0){
-    *r = _ACC_reduction_op(*r, sum, kind);
-  }
+	flush();
+	
+	if ( 0 == pid )
+	{
+#ifdef DO_PREFETCH
+	  do_prefetch_L1( tmp, 0 );
+#endif
+
+#if 1
+		T v = 0;
+		if ( tid < 4 )
+		{
+			v = tmp[ tid ];
+		}
+		
+		sum = __ReductionPe( v );
+#else
+		if(tid == 0){
+		  sum = tmp[0];
+		  sum += tmp[1];
+		  sum += tmp[2];
+		  sum += tmp[3];
+		}
+#endif
+	}
+	
+	return sum;
 }
 
 
+///////////////////////////////////////////////////////////////////////////////
 
-//interface
+
 template<typename T>
 static inline
 void _ACC_gpu_init_reduction_var(T* v, int kind)
 {
   _ACC_reduction_init(v, static_cast<_ACC_reduction_kind>(kind));
 }
+
 template<typename T>
 static inline
 void _ACC_gpu_reduction_thread(T* r, T v, int kind)
 {
-  _ACC_pezy_reduction_thread(r, v, static_cast<_ACC_reduction_kind>(kind));
+  // ëSÉXÉåÉbÉhÇ≈é¿çsÇ∑ÇÈ
+  const T tmp = __ReductionPe(v);
+
+#if 0
+  // Ç»Ç∫Ç©Ç±ÇøÇÁÇæÇ∆ÉGÉâÅ[Ç™èoÇÈ
+  if(get_tid() == 0){
+    *r = _ACC_reduction_op(*r, tmp, static_cast<_ACC_reduction_kind>(kind));
+  }
+#else
+  *r = _ACC_reduction_op(*r, tmp, static_cast<_ACC_reduction_kind>(kind));
+#endif
 }
+
 template<typename T>
 static inline
-void _ACC_gpu_reduction_block(T* r, int kind, T v)
+void _ACC_gpu_reduction_bt(T* r, T v, int kind)
 {
-  _ACC_pezy_reduction_pe(r, v, static_cast<_ACC_reduction_kind>(kind));
+  const T tmp = __ReductionStateForPeSingle(v);
+  if(get_pid() == 0 && get_tid() == 0){
+    *r = _ACC_reduction_op(*r, tmp, static_cast<_ACC_reduction_kind>(kind));
+  }
 }
 
 
-
-// //„ÅÑ„Çâ„Å™„ÅÑ
-// template<typename T>
-// static inline
-// void _ACC_gpu_reduction_bt(T* r, T v, int kind)
-// {
-//   //ÂÖ®PE„ÅßÂÆüË°å„Åô„Çã (GPU„Åß„ÅØ1block„ÅÆ„Åø)
-//   T tmp = ReductionCityForPeSingle(v);
-//   int offset = get_tid() + get_maxtid() * get_pid();
-//   if(get_pid() == 0 && get_tid() == 0){
-//     *r = _ACC_reduction_op(*r, tmp, kind); //op
-//   }
-// }
 
 #endif //_ACC_PEZY_REDUCTION

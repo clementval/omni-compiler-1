@@ -74,7 +74,7 @@ class ACCgpuDecompiler {
         case OpenCL:
           includeLines.add("#include \"acc.h\"");
           if(ACC.device == ACC.Device.PEZY){
-            includeLines.add("#include \"acc_pezy.h\"");
+            includeLines.add("#include \"acc_pezy.hpp\"");
           }else{
             includeLines.add("#include \"acc_cl.h\"");
           }

@@ -1899,6 +1899,14 @@ public class AccKernel {
       while (blockRedIter.hasNext()) {
         Reduction reduction = blockRedIter.next();
         Ident tmpVar = Ident.Local("_ACC_gpu_reduction_tmp_" + reduction.var.getName(), reduction.varId.Type());
+	if(ACC.device == ACC.Device.PEZY){
+	    if(reduction.useThread()){
+		body.add(reduction.makeAtomicBlockThreadReductionFuncCall());
+		//body.add(reduction.makeAtomicBlockReductionFuncCall(null));
+	    }else{
+		body.add(reduction.makeAtomicBlockReductionFuncCall(null));		
+	    }
+	}else{
         if (reduction.useThread()) {
           body.addIdent(tmpVar);
           body.add(ACCutil.createFuncCallBlock("_ACC_gpu_init_reduction_var", Xcons.List(tmpVar.getAddr(), Xcons.IntConstant(reduction.getReductionKindInt()))));
@@ -1919,6 +1927,7 @@ public class AccKernel {
             body.add(reduction.makeAtomicBlockReductionFuncCall(null));
           }
         }
+	}
       }
 
       if (!thenBody.isEmpty()) {
@@ -2103,6 +2112,12 @@ public class AccKernel {
       return ACCutil.createFuncCallBlock("_ACC_gpu_reduction_block", args);
     }
 
+    public Block makeAtomicBlockThreadReductionFuncCall() {
+      XobjList args;
+      args = Xcons.List(varId.Ref(), localVarId.Ref(), Xcons.IntConstant(getReductionKindInt()));
+      return ACCutil.createFuncCallBlock("_ACC_gpu_reduction_bt", args);
+    }
+
     public Block makeThreadReductionFuncCall() {
       if (!execMethodSet.contains(ACCpragma.GANG)) { //execMethod == ACCpragma._THREAD) {
         return makeThreadReductionFuncCall(varId);
@@ -2156,6 +2171,10 @@ public class AccKernel {
     }
 
     public boolean usesTmp() {
+	if(ACC.device == ACC.Device.PEZY){
+	    return false;
+	}
+
       ACCpragma op = var.getReductionOperator();
       switch (var.getId().Type().getBasicType()) {
       case BasicType.FLOAT:

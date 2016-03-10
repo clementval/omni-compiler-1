@@ -2,6 +2,7 @@
 #define _ACC_PEZY_HEADER
 
 #include "pzc_builtin.h"
+#include "acc_pezy_util.hpp"
 #include "acc_pezy_reduction.hpp"
 
 //Macro
@@ -55,7 +56,7 @@ void _ACC_calc_idx(T id, T0 *idx, T1 lower, T2 upper, T3 stride)
 static inline
 void _ACC_sync_threads()
 {
-  sync_L1();
+  wait_pe();
 }
 
 static inline
