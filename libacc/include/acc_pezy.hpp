@@ -17,18 +17,18 @@ static inline
 void _ACC_init_iter_block_thread_x(T *bt_idx, T *bt_cond, T *bt_step, T0 totalIter)
 {
   T gang_size = _ACC_M_CEILi(totalIter, /*gridDim.x*/get_maxpid());
-  *bt_idx  = gang_size * /*blockIdx.x*/get_pid() + /*threadIdx.x*/get_tid();
-  *bt_cond = _ACC_M_MIN(gang_size * (/*blockIdx.x*/get_pid() + 1), totalIter);
-  *bt_step = /*blockDim.x*/get_maxtid();
+  *bt_idx  = get_pid() * get_maxtid() + get_tid(); //gang_size * /*blockIdx.x*/get_pid() + /*threadIdx.x*/get_tid();
+  *bt_cond = totalIter; //_ACC_M_MIN(gang_size * (/*blockIdx.x*/get_pid() + 1), totalIter);
+  *bt_step = get_maxpid() * get_maxtid(); ///*blockDim.x*/get_maxtid();
 }
 
 template<typename T, typename T0>
 static inline
 void _ACC_init_iter_block_x(T *gang_iter, T *gang_cond, T *gang_step, T0 totaliter){
   T0 gang_size = _ACC_M_CEILi(totaliter, /*gridDim.x*/get_maxpid());
-  *gang_iter = gang_size * /*blockIdx.x*/get_pid();
-  *gang_cond = _ACC_M_MIN(*gang_iter + gang_size, totaliter);
-  *gang_step = 1;
+  *gang_iter = get_pid(); //gang_size * /*blockIdx.x*/get_pid();
+  *gang_cond = totaliter; //_ACC_M_MIN(*gang_iter + gang_size, totaliter);
+  *gang_step = get_maxpid(); //1;
 }
 
 template<typename T, typename T0>
