@@ -24,7 +24,8 @@ struct _ACC_program_type {
 
 static int adjust_num_gangs(int num_gangs, int limit){
   if(num_gangs > limit){
-    return _ACC_M_CEILi(num_gangs, _ACC_M_CEILi(num_gangs, limit));
+    return limit;
+    //return _ACC_M_CEILi(num_gangs, _ACC_M_CEILi(num_gangs, limit));
   }
   return num_gangs;
 }
