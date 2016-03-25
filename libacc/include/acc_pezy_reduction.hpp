@@ -1,7 +1,6 @@
 #ifndef _ACC_PEZY_REDUCTION
 #define  _ACC_PEZY_REDUCTION
 
-#include "pzc_builtin.h"
 #include "acc_pezy_util.hpp"
 
 //#define DO_PREFETCH

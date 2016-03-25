@@ -1,6 +1,29 @@
 #ifndef _ACC_PEZY_UTIL
 #define _ACC_PEZY_UTIL
 
+// pzc headers should be included here
+#include "pzc_builtin.h"
+
+// these definisions should be placed top
+#if 1
+// for avoiding compiler's bug
+#define wait_pe()         __sync_L0()
+#define wait_village()    __sync_L1()
+#define wait_city()       __sync_L2()
+#define wait_prefecture() __sync_L3()
+#define sync_L1()         __sync_L1()
+#define sync_L2()         __sync_L2()
+#define sync()            __sync()
+#define flush_L1()        __flush_L1()
+#define flush_L2()        __flush_L2()
+#define flush_L3()        __flush_L3()
+#define flush()           __flush()
+#else
+#define wait_pe()         sync_L0()
+#define wait_village()    sync_L1()
+#define wait_city()       sync_L2()
+#define wait_prefecture() sync_L3()
+#endif
 
 // these values are copied from /opt/pzsdk.ver2.1/inc/pzcl/cl_platform.h
 #define INT_MAX          2147483647
@@ -11,18 +34,56 @@
 #define DBL_MIN          0x1.0p-1022
 // end cl_platform.h
 
+//////////////////////////////////////////////////////////////////////
+// alternative sync and flush functions for avoiding compiler's bug.
+static inline void __flush_L1( void )
+{
+  asm volatile( "c.wflush 2; c.nop" );
+}
+static inline void __flush_L2( void )
+{
+  asm volatile( "c.wflush 3; c.nop" );
+}
+static inline void __flush_L3( void )
+{
+  asm volatile( "c.wflush 4; c.nop" );
+}
+static inline void __flush( void )
+{
+  asm volatile( "c.wflush 8; c.nop" );
+}
+static inline void __sync( void )
+{
+  asm volatile( "c.sync 8; c.nop; " );
+}
+inline void __sync_L0( void ) //pe
+{
+  __asm__ __volatile__( "c.sync 1; c.nop;" );  
+}
+inline void __sync_L1( void ) //village
+{
+  __asm__ __volatile__( "c.sync 2; c.nop;" );
+}
+inline void __sync_L2( void ) //city
+{
+  __asm__ __volatile__( "c.sync 3; c.nop;" );
+}
+inline void __sync_L3( void ) //prefecture
+{
+  __asm__ __volatile__( "c.sync 4; c.nop;" );
+}
+//////////////////////////////////////////////////////////////////////
 
-// these funcitons are copied from pzcutil.h
-inline void wait_pe( void )
+inline void sync_L0( void )
 {
   __asm__ __volatile__( "c.sync 1" );
 }
-inline void wait_prefecture( void )
+inline void sync_L3( void )
 {
   __asm__ __volatile__( "c.sync 4" );
 }
-#define wait_village sync_L1
-#define wait_city    sync_L2
+
+// these funcitons are copied from pzcutil.h
 volatile
 inline void do_prefetch_L1( const void* a, int offset )
 {

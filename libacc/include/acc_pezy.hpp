@@ -1,7 +1,6 @@
 #ifndef _ACC_PEZY_HEADER
 #define _ACC_PEZY_HEADER
 
-#include "pzc_builtin.h"
 #include "acc_pezy_util.hpp"
 #include "acc_pezy_reduction.hpp"
 
