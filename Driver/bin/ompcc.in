@@ -190,15 +190,15 @@ for c_file in "${c_files[@]}"; do
 	    FILE_HEX=${TEMP_DIR}/"${FILE_NAME}"_pp.hex
 	    FILE_PZ=${TEMP_DIR}/"${FILE_NAME}"_pp.pz
 	    FILE_USER_PZ=${FILE_NAME}_pp.pz  #`basename "${C_FILE}" .c`_pp.pz
-	    omni_exec ${OMNI_PEZY_PREFIX}/bin/clang -target pz -mcpu=sc -emit-llvm -O3  -fno-threadsafe-statics -c -x c++ -D_PZC_KERNEL -D_PZ1_INSTANCE -I${OMNI_PEZY_PREFIX}/inc -I${OMNI_HOME}/include -c ${FILE_PZC} -o ${FILE_IR}
-	    omni_exec ${OMNI_PEZY_PREFIX}/bin/llvm-link ${OMNI_PEZY_PREFIX}/bin/pzmath.pzo ${FILE_IR} -o ${FILE_IRO}  # Make Obj
-	    omni_exec ${OMNI_PEZY_PREFIX}/bin/llvm-nm ${FILE_IRO} | grep -G "T _Z[0-9]*pz[c,1]_" > ${FILE_SYM}
-	    omni_exec ${OMNI_PEZY_PREFIX}/bin/opt -O3 -pz-link-opts -internalize-public-api-file ${FILE_SYM} ${FILE_IRO} -o=${FILE_OBJ}
-	    omni_exec ${OMNI_PEZY_PREFIX}/bin/llvm-link ${OMNI_PEZY_PREFIX}/bin/pzcrt.pzo ${FILE_OBJ} -o ${FILE_OBJ}
-	    omni_exec ${OMNI_PEZY_PREFIX}/bin/llc -march=pz -mcpu=sc -O3 ${FILE_OBJ} -o ${FILE_PZS}
-	    omni_exec ${OMNI_PEZY_PREFIX}/bin/clang -E -x c++ -DPZ_LLVMMC_ASM -I${OMNI_PEZY_PREFIX}/inc ${FILE_PZS} -o ${FILE_LL}
-	    omni_exec ${OMNI_PEZY_PREFIX}/bin/llvm-mc -filetype=obj -arch=pz -mcpu=sc  ${FILE_LL} -o ${FILE_HEX}
-	    omni_exec ${OMNI_PEZY_PREFIX}/bin/pzlink -v ${FILE_HEX} -o ${FILE_PZ}
+	    omni_exec ${OMNI_PZCL_PREFIX}/bin/clang -target pz -mcpu=sc -emit-llvm -O3  -fno-threadsafe-statics -c -x c++ -D_PZC_KERNEL -D_PZ1_INSTANCE -I${OMNI_PZCL_PREFIX}/inc -I${OMNI_HOME}/include -c ${FILE_PZC} -o ${FILE_IR}
+	    omni_exec ${OMNI_PZCL_PREFIX}/bin/llvm-link ${OMNI_PZCL_PREFIX}/bin/pzmath.pzo ${FILE_IR} -o ${FILE_IRO}  # Make Obj
+	    omni_exec ${OMNI_PZCL_PREFIX}/bin/llvm-nm ${FILE_IRO} | grep -G "T _Z[0-9]*pz[c,1]_" > ${FILE_SYM}
+	    omni_exec ${OMNI_PZCL_PREFIX}/bin/opt -O3 -pz-link-opts -internalize-public-api-file ${FILE_SYM} ${FILE_IRO} -o=${FILE_OBJ}
+	    omni_exec ${OMNI_PZCL_PREFIX}/bin/llvm-link ${OMNI_PZCL_PREFIX}/bin/pzcrt.pzo ${FILE_OBJ} -o ${FILE_OBJ}
+	    omni_exec ${OMNI_PZCL_PREFIX}/bin/llc -march=pz -mcpu=sc -O3 ${FILE_OBJ} -o ${FILE_PZS}
+	    omni_exec ${OMNI_PZCL_PREFIX}/bin/clang -E -x c++ -DPZ_LLVMMC_ASM -I${OMNI_PZCL_PREFIX}/inc ${FILE_PZS} -o ${FILE_LL}
+	    omni_exec ${OMNI_PZCL_PREFIX}/bin/llvm-mc -filetype=obj -arch=pz -mcpu=sc  ${FILE_LL} -o ${FILE_HEX}
+	    omni_exec ${OMNI_PZCL_PREFIX}/bin/pzlink -v ${FILE_HEX} -o ${FILE_PZ}
 	    omni_exec cp "${FILE_PZ}" "${FILE_USER_PZ}"
 	fi
     fi
@@ -237,7 +237,7 @@ if [ $ENABLE_ACC = true ]; then
     elif [ $OPENACC_PLATFORM = "OpenCL" ]; then
 	OMNI_LINKER_OPT="$OMNI_LINKER_OPT $OMNI_OPENCL_LIB"
     elif [ $OPENACC_PLATFORM = "PZCL" ]; then
-	OMNI_LINKER_OPT="$OMNI_LINKER_OPT $OMNI_PEZY_LIB"
+	OMNI_LINKER_OPT="$OMNI_LINKER_OPT $OMNI_PZCL_LIB"
     fi
     obj_files+=("$TRAVERSE_FILE_O")
 else
