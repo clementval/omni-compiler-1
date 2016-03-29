@@ -955,16 +955,32 @@ fi
 
 AC_SUBST(GPGPU_PREFIX)
 
-AC_ARG_WITH(pezy,
-    [  --with-pezy=DIR             Pezy SDK installation path],
-    [PEZY_PREFIX="${withval}"; use_pezy=yes; use_opencl=yes], [use_pezy=no])
+AC_ARG_WITH(pzcl,
+    [  --with-pzcl=DIR             PZCL SDK installation path],
+    [PZCL_PREFIX="${withval}"; use_pzcl=yes], [use_pezy=no])
 
-AM_CONDITIONAL(PEZY, test x${use_pezy} = xyes)
-AC_SUBST(PEZY_PREFIX)
+AC_SUBST(PZCL_PREFIX)
 
 
 AM_CONDITIONAL(CUDA, test x${use_cuda} = xyes)
 AM_CONDITIONAL(OPENCL, test x${use_opencl} = xyes)
+AM_CONDITIONAL(PZCL, test x${use_pzcl} = xyes)
+
+if test "x${use_cuda}" = "xyes"; then
+    ACC_DEFAULT_PLATFORM=CUDA
+    ACC_DEFAULT_DEVICE=Fermi
+elif test "x${use_opencl}" = "xyes"; then
+    ACC_DEFAULT_PLATFORM=OpenCL
+    ACC_DEFAULT_DEVICE=Fermi
+elif test "x${use_pzcl}" = "xyes"; then
+    ACC_DEFAULT_PLATFORM=PZCL
+    ACC_DEFAULT_DEVICE=PEZYSC
+elif test "x${doOpenAcc}" = "xyes"; then
+    AC_MSG_ERROR([CUDA, OpenCL, or PZCL not found. Please attach --with-cuda or --with-pzcl.])
+fi
+
+AC_SUBST(ACC_DEFAULT_PLATFORM)
+AC_SUBST(ACC_DEFAULT_DEVICE)
 
 # --------------------------------------------------------------------
 # specify libxmp path

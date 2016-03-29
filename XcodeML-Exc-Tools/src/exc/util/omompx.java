@@ -424,7 +424,7 @@ public class omompx
         switch(ACC.platform){
           case CUDA:
           case OpenCL:
-            ACC.device = AccDevice.FERMI;
+            ACC.device = AccDevice.Fermi;
             break;
           case PZCL:
             ACC.device = AccDevice.PEZYSC;
