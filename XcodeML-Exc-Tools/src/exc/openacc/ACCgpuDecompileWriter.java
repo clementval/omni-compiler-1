@@ -93,7 +93,7 @@ class ACCgpuDecompileWriter extends PrintWriter {
           }
 
           String funcName = id.getName();
-          if(ACC.device == ACC.Device.PEZY){
+          if(ACC.platform == ACC.Platform.PZCL){
             funcName = "pzc_" + funcName;
           }
           if (id.Type().isFuncProto() && id.Type().getFuncParam() != null) {
@@ -121,12 +121,15 @@ class ACCgpuDecompileWriter extends PrintWriter {
               func_args += ")";
             }
             if (isDeviceFunc) {
-              if(ACC.platform == ACC.Platform.CUDA) {
-                println("__global__ static");
-              }else{
-                if(ACC.device != ACC.Device.PEZY) {
+              switch (ACC.platform){
+                case CUDA:
+                  println("__global__ static");
+                  break;
+                case OpenCL:
                   println("__kernel");
-                }
+                  break;
+                case PZCL:
+                  break;
               }
             } else {
               println("extern \"C\"");
@@ -964,12 +967,15 @@ class ACCgpuDecompileWriter extends PrintWriter {
   private void printIdentDecl(Ident id) {
     Object isShared = id.getProp(ACCgpuDecompiler.GPU_STRAGE_SHARED);
     if(isShared != null){
-      if(ACC.platform == ACC.Platform.CUDA) {
-        print("__shared__ ");
-      }else{
-        if(ACC.device != ACC.Device.PEZY){
+      switch(ACC.platform){
+        case CUDA:
+          print("__shared__ ");
+          break;
+        case OpenCL:
           print("__local ");
-        }
+          break;
+        case PZCL:
+          break;
       }
     }
     switch (id.getStorageClass()) {

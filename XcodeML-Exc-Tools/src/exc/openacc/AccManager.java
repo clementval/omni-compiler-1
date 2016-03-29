@@ -118,7 +118,7 @@ class AccManager {
 
       if (execMethods.contains(ACCpragma.VECTOR)) {
         if (tsx == null) {
-          tsx = Xcons.IntConstant(ACC.defaultVectorLength);
+          tsx = Xcons.IntConstant(ACC.device.getDefaultVectorLength());
         }
       }
     }

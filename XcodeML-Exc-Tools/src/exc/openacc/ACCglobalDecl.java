@@ -274,7 +274,7 @@ class ACCglobalDecl{
       Ident kernelNamesId = body.declLocalIdent("_ACC_kernel_names", Xtype.Array(Xtype.stringType, numKernels),
               StorageClass.AUTO, nameList);
       String fileName = new File(_env_device.getSourceFileName()).getName();
-      if(ACC.device == ACC.Device.PEZY){
+      if(ACC.platform == ACC.Platform.PZCL){
         fileName = ACCutil.removeExtension(fileName) + ".pz";
       }
       XobjList args = Xcons.List(

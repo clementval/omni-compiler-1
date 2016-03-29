@@ -80,11 +80,15 @@ public class AccKernel {
     String funcName = getFuncInfo(_pb).getArg(0).getString();
     int lineNo = kernelBody.get(0).getLineNo().lineNo();
     String kernelMainName = ACC_FUNC_PREFIX + funcName + "_L" + lineNo;
-    String launchFuncName;
-    if(ACC.platform == ACC.Platform.CUDA){
-      launchFuncName = kernelMainName;
-    }else{
-      launchFuncName = ACC_CL_KERNEL_LAUNCHER_NAME;
+    String launchFuncName = "";
+    switch (ACC.platform){
+      case CUDA:
+        launchFuncName = kernelMainName;
+        break;
+      case OpenCL:
+      case PZCL:
+        launchFuncName = ACC_CL_KERNEL_LAUNCHER_NAME;
+        break;
     }
 
     collectOuterVar();
@@ -256,7 +260,7 @@ public class AccKernel {
     //make params
     //add paramId from outerId
     for (Ident id : outerIdList) {
-      if (ACC.useReadOnlyDataCache && _readOnlyOuterIdSet.contains(id) && (id.Type().isArray() || id.Type().isPointer())) {
+      if (ACC.device.getUseReadOnlyDataCache() && _readOnlyOuterIdSet.contains(id) && (id.Type().isArray() || id.Type().isPointer())) {
         Xtype constParamType = makeConstRestrictVoidType();
         Ident constParamId = Ident.Param("_ACC_cosnt_" + id.getName(), constParamType);
 
@@ -313,7 +317,7 @@ public class AccKernel {
 
     kernelBuildInfo.addFinalizeBlock(reductionManager.makeReduceAndFinalizeFuncs()); //deviceKernelBody.add(reductionManager.makeReduceAndFinalizeFuncs());
 
-    if(ACC.device == ACC.Device.PEZY){
+    if(ACC.device == AccDevice.PEZYSC){
       kernelBuildInfo.addFinalizeBlock(Bcons.Statement(_accFlush));
     }
 
@@ -970,6 +974,7 @@ public class AccKernel {
       kernelLauchBlock = makeLauncherFuncCallCUDA(launchFuncName, deviceKernelDef, deviceKernelCallArgs, num_gangs.Ref(), num_workers.Ref(), vec_len.Ref(), getAsyncExpr());
       break;
     case OpenCL:
+      case PZCL:
       String kernelName = deviceKernelDef.getName();
       Ident kernelConf =blockListBuilder.declLocalIdent("_ACC_conf", Xtype.Array(Xtype.intType, null), Xcons.List(num_gangs.Ref(), num_workers.Ref(), vec_len.Ref()));
       kernelLauchBlock = makeKernelLaunchBlock(ACC_CL_KERNEL_LAUNCHER_NAME, kernelName, deviceKernelCallArgs, kernelConf, getAsyncExpr());
@@ -993,10 +998,11 @@ public class AccKernel {
         reductionKernelCallBlock = makeLauncherFuncCallCUDA(launchFuncName + "_red", reductionKernelDef, reductionKernelCallArgs,
                 Xcons.IntConstant(reductionKernelVarCount),
                 Xcons.IntConstant(1),
-                Xcons.IntConstant(ACC.defaultVectorLength),
+                Xcons.IntConstant(ACC.device.getDefaultVectorLength()),
                 getAsyncExpr());
         break;
       case OpenCL:
+        case PZCL:
         BlockList body = Bcons.emptyBody();
         String kernelName = reductionKernelDef.getName();
         Ident kernelConf = body.declLocalIdent("_ACC_conf", Xtype.Array(Xtype.intType, null), StorageClass.AUTO, Xcons.List(num_gangs.Ref(), num_workers.Ref(), vec_len.Ref()));
@@ -1039,7 +1045,7 @@ public class AccKernel {
     callArgs.add(confId.Ref());
     callArgs.add(asyncExpr);
 
-    Xobject max_num_grid = Xcons.IntConstant(65535);
+    Xobject max_num_grid = Xcons.IntConstant(ACC.device.getMaxNumGangs());
     Block adjustGridFuncCall = ACCutil.createFuncCallBlock("_ACC_gpu_adjust_grid", Xcons.List(
             Xcons.AddrOf(Xcons.arrayRef(Xtype.intType, confId.getAddr(), Xcons.List(Xcons.IntConstant(0)))),
             Xcons.AddrOf(Xcons.arrayRef(Xtype.intType, confId.getAddr(), Xcons.List(Xcons.IntConstant(1)))),
@@ -1899,7 +1905,7 @@ public class AccKernel {
       while (blockRedIter.hasNext()) {
         Reduction reduction = blockRedIter.next();
         Ident tmpVar = Ident.Local("_ACC_gpu_reduction_tmp_" + reduction.var.getName(), reduction.varId.Type());
-	if(ACC.device == ACC.Device.PEZY){
+	if(ACC.device == AccDevice.PEZYSC){
 	    if(reduction.useThread()){
 		body.add(reduction.makeAtomicBlockThreadReductionFuncCall());
 		//body.add(reduction.makeAtomicBlockReductionFuncCall(null));
@@ -2171,7 +2177,7 @@ public class AccKernel {
     }
 
     public boolean usesTmp() {
-	if(ACC.device == ACC.Device.PEZY){
+	if(ACC.device == AccDevice.PEZYSC){
 	    return false;
 	}
 
