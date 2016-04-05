@@ -70,11 +70,11 @@ class ACCgpuDecompiler {
           includeLines.add("#include \"acc_gpu_func.hpp\"");
           break;
         case OpenCL:
-          includeLines.add("#include \"acc.h\"");
+	    //          includeLines.add("#include \"acc.h\"");
           includeLines.add("#include \"acc_cl.h\"");
           break;
         case PZCL:
-          includeLines.add("#include \"acc.h\"");
+	    //          includeLines.add("#include \"acc.h\"");
           includeLines.add("#include \"acc_pezy.hpp\"");
           break;
         default:
