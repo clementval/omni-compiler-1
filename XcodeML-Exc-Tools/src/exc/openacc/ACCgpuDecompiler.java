@@ -67,7 +67,6 @@ class ACCgpuDecompiler {
       switch(ACC.platform){
         case CUDA:
           includeLines.add("#include \"acc.h\"");
-          includeLines.add("#include \"acc_gpu.h\"");
           includeLines.add("#include \"acc_gpu_func.hpp\"");
           break;
         case OpenCL:

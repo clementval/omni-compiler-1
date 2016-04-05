@@ -125,7 +125,6 @@ class ACCglobalDecl{
 
   public void setupHeaderInclude(){
     _env.addHeaderLine("# include \"acc.h\"");
-    _env.addHeaderLine("# include \"acc_gpu.h\"");
   }
 
   public Ident findVarIdent(String name){
