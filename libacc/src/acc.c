@@ -260,6 +260,9 @@ void acc_finalize_()
 //internal functions
 static void _ACC_init_device_if_not_inited(int num)
 {
+  if(_ACC_runtime_working == false){
+    _ACC_init(0, NULL);
+  }
   if(contexts[_ACC_normalize_device_num(num)].isInitialized == false){
     init_device(num);
   }
