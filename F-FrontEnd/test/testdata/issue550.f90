@@ -10,13 +10,13 @@ MODULE mod1
   END TYPE t_State
 
 CONTAINS
-  SUBROUTINE init_state(this, parent)
+  SUBROUTINE init_state(this, root)
     CLASS(t_state), INTENT(inout), TARGET :: this
-    CLASS(t_state), POINTER, OPTIONAL       :: parent
+    CLASS(t_state), POINTER, OPTIONAL       :: root
   
-    SELECT TYPE(parent)
+    SELECT TYPE(root)
       CLASS IS (t_state)
-        this%parent => parent
+        this%parent => root
     END SELECT
 
   END SUBROUTINE init_state
